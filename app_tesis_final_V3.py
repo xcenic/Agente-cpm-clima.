@@ -22,9 +22,9 @@ except ImportError:
     st.stop()
 
 # ==============================================================================
-# 1. CONFIGURACIÓN Y ESTILO (Modo Premium)
+# 1. CONFIGURACIÓN Y ESTILO (Modo CHRONOFLUX)
 # ==============================================================================
-st.set_page_config(page_title="Consultor IA - V12 Memoria Activa", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="CHRONOFLUX | CPM + IA", layout="wide", page_icon="⚡")
 
 st.markdown("""
     <style>
@@ -34,8 +34,8 @@ st.markdown("""
             border-radius: 12px; text-align: center; margin-bottom: 25px;
             box-shadow: 0 10px 20px rgba(175, 30, 45, 0.2);
         }
-        .main-banner h1 { color: white !important; margin: 0; font-size: 2.8em; font-weight: 800; letter-spacing: -1px; }
-        .main-banner p { color: #f8d7da !important; margin: 5px 0 0 0; font-size: 1.2em; font-weight: 400; }
+        .main-banner h1 { color: white !important; margin: 0; font-size: 3em; font-weight: 900; letter-spacing: 3px; font-family: 'Courier New', monospace; }
+        .main-banner p { color: #f8d7da !important; margin: 5px 0 0 0; font-size: 1.2em; font-weight: 400; text-transform: uppercase; letter-spacing: 1px;}
         [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E0E0E0; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
         .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 10px 20px;}
         .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(175, 30, 45, 0.3); background-color: #901924; }
@@ -50,7 +50,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ESTADOS Y MEMORIA CACHÉ (NUEVO)
+# ESTADOS Y MEMORIA CACHÉ
 if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4861
 if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.9312
 if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Distrito Nacional - Santo Domingo (Centro)"
@@ -67,11 +67,10 @@ with col_logo:
 with col_banner:
     st.markdown("""
         <div class="main-banner">
-            <h1>Panel Gerencial CPM + IA Climática</h1>
-            <p>Auditoría de Rutas Críticas y Modelado Expected Value Buffer</p>
+            <h1>CHRONOFLUX</h1>
+            <p>Motor de Simulación Climática y Optimización de Rutas Críticas</p>
         </div>
     """, unsafe_allow_html=True)
-
 # ==============================================================================
 # 2. MANUAL DETALLADO DE USUARIO
 # ==============================================================================
