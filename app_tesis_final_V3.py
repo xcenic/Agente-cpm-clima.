@@ -61,6 +61,70 @@ st.markdown("""
         Motor de Simulación Climática y Optimización de Rutas Críticas
     </div>
 """, unsafe_allow_html=True)
+
+# ==============================================================================
+# 1. CONFIGURACIÓN Y ESTILO (Modo CHRONOFLUX)
+# ==============================================================================
+st.set_page_config(page_title="CHRONOFLUX | CPM + IA", layout="wide", page_icon="⚡")
+
+st.markdown("""
+    <style>
+        .stApp { background-color: #F4F6F9; color: #333333; font-family: 'Segoe UI', sans-serif; }
+        .mini-banner {
+            background: linear-gradient(135deg, #AF1E2D 0%, #7A1520 100%); color: white; padding: 12px;
+            border-radius: 8px; text-align: center; margin-bottom: 25px;
+            box-shadow: 0 4px 10px rgba(175, 30, 45, 0.2);
+            font-size: 1.1em; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+        }
+        [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E0E0E0; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+        .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 10px 20px;}
+        .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(175, 30, 45, 0.3); background-color: #901924; }
+        .kpi-card {
+            background-color: white; border-left: 6px solid #AF1E2D; border-radius: 10px;
+            padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; text-align: center;
+        }
+        .kpi-number { font-size: 3.5em; font-weight: 900; color: #AF1E2D; margin: 0; line-height: 1; font-family: 'Arial Black', sans-serif;}
+        .kpi-label { font-size: 1.1em; color: #6C757D; margin-top: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;}
+        .manual-section { background-color: white; padding: 20px; border-radius: 8px; border-left: 4px solid #AF1E2D; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
+        .manual-section h4 { color: #AF1E2D; margin-top: 0; font-weight: 700;}
+    </style>
+""", unsafe_allow_html=True)
+
+# ESTADOS Y MEMORIA CACHÉ
+if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4861
+if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.9312
+if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Distrito Nacional - Santo Domingo (Centro)"
+if 'audit_decision' not in st.session_state: st.session_state['audit_decision'] = None
+if 'project_name' not in st.session_state: st.session_state['project_name'] = "Proyecto"
+if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
+if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
+
+# ==============================================================================
+# ENCABEZADO CON JERARQUÍA VISUAL (CHRONOFLUX COMO PROTAGONISTA)
+# ==============================================================================
+col_intec, col_centro, col_vacia = st.columns([1, 3, 1])
+
+with col_intec:
+    try: 
+        st.image("logo_intec.png", use_container_width=True)
+    except: 
+        st.empty()
+
+with col_centro:
+    try: 
+        st.image("logo_chronoflux.png", use_container_width=True)
+    except: 
+        st.empty()
+
+with col_vacia:
+    st.empty() # Mantiene el balance central
+
+# La barra roja ahora es delgada y elegante, sin quitarle protagonismo al logo
+st.markdown("""
+    <div class="mini-banner">
+        Motor de Simulación Climática y Optimización de Rutas Críticas
+    </div>
+""", unsafe_allow_html=True)
 # ==============================================================================
 # 2. MANUAL DETALLADO DE USUARIO
 # ==============================================================================
