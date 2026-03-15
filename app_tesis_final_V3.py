@@ -59,10 +59,16 @@ if 'project_name' not in st.session_state: st.session_state['project_name'] = "P
 if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
-col_logo, col_banner = st.columns([1, 4])
-with col_logo:
-    try: st.image("logo_intec.png", use_container_width=True)
-    except: st.warning("Logo no encontrado")
+# ==============================================================================
+# ENCABEZADO CON DOBLE LOGO (INTEC + CHRONOFLUX)
+# ==============================================================================
+col_logo_izq, col_banner, col_logo_der = st.columns([1, 4, 1])
+
+with col_logo_izq:
+    try: 
+        st.image("logo_intec.png", use_container_width=True)
+    except: 
+        st.empty()
 
 with col_banner:
     st.markdown("""
@@ -71,6 +77,14 @@ with col_banner:
             <p>Motor de Simulación Climática y Optimización de Rutas Críticas</p>
         </div>
     """, unsafe_allow_html=True)
+
+with col_logo_der:
+    try: 
+        # Asegúrate de que el nombre de tu archivo de imagen coincida con esto
+        st.image("logo_chronoflux.png", use_container_width=True)
+    except: 
+        st.empty()
+
 # ==============================================================================
 # 2. MANUAL DETALLADO DE USUARIO
 # ==============================================================================
@@ -107,69 +121,37 @@ with st.expander("📘 MANUAL OPERATIVO DEL SISTEMA (Clic para desplegar)"):
 # 3. BASE DE DATOS GEOGRÁFICA
 # ==============================================================================
 COORDENADAS_RD = {
-    # --- AZUA ---
     "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Azua - Padre Las Casas": (18.7339, -70.9328), "Azua - Peralta": (18.5786, -70.7714),
-    # --- BAORUCO ---
     "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167), "Baoruco - Tamayo": (18.3942, -71.2025), "Baoruco - Los Ríos": (18.5194, -71.5878),
-    # --- BARAHONA ---
     "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Barahona - Vicente Noble": (18.3814, -71.1764), "Barahona - Paraíso": (17.9917, -71.1653), "Barahona - Enriquillo": (17.9031, -71.2294),
-    # --- DAJABÓN ---
     "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083), "Dajabón - Loma de Cabrera": (19.4217, -71.6053), "Dajabón - Restauración": (19.3139, -71.6961),
-    # --- DISTRITO NACIONAL ---
     "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Distrito Nacional - Zona Colonial": (18.4722, -69.8844), "Distrito Nacional - Los Cacicazgos": (18.4452, -69.9575),
-    # --- DUARTE ---
     "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525), "Duarte - Castillo": (19.2133, -70.0272), "Duarte - Villa Riva": (19.1825, -69.9128), "Duarte - Arenoso": (19.1914, -69.8592),
-    # --- EL SEIBO ---
     "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "El Seibo - Miches": (18.9839, -69.0475), "El Seibo - Pedro Sánchez": (18.8631, -69.1125),
-    # --- ELÍAS PIÑA ---
     "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029), "Elías Piña - Hondo Valle": (18.7125, -71.7022), "Elías Piña - Bánica": (19.0803, -71.7036),
-    # --- ESPAILLAT ---
     "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Espaillat - Gaspar Hernández": (19.6261, -70.2794), "Espaillat - Jamao al Norte": (19.6369, -70.4464),
-    # --- HATO MAYOR ---
     "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565), "Hato Mayor - Sabana de la Mar": (19.0556, -69.3886), "Hato Mayor - El Valle": (18.9667, -69.3667),
-    # --- HERMANAS MIRABAL ---
     "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Hermanas Mirabal - Tenares": (19.3744, -70.3508), "Hermanas Mirabal - Villa Tapia": (19.2978, -70.4350),
-    # --- INDEPENDENCIA ---
     "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515), "Independencia - Duvergé": (18.3778, -71.5244), "Independencia - La Descubierta": (18.5700, -71.7289),
-    # --- LA ALTAGRACIA ---
     "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Altagracia - Punta Cana / Bávaro": (18.5601, -68.3725), "La Altagracia - San Rafael del Yuma": (18.4333, -68.6667), "La Altagracia - Bayahíbe": (18.3750, -68.8361),
-    # --- LA ROMANA ---
     "La Romana - La Romana (Cabecera)": (18.4273, -68.9728), "La Romana - Guaymate": (18.5889, -68.9469), "La Romana - Villa Hermosa": (18.4417, -69.0028),
-    # --- LA VEGA ---
     "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "La Vega - Constanza": (18.9089, -70.7444), "La Vega - Jarabacoa": (19.1217, -70.6411), "La Vega - Jima Abajo": (19.1361, -70.3756),
-    # --- MARÍA TRINIDAD SÁNCHEZ ---
     "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511), "María Trinidad Sánchez - Cabrera": (19.6417, -69.9022), "María Trinidad Sánchez - Río San Juan": (19.6381, -70.0767),
-    # --- MONSEÑOR NOUEL ---
     "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monseñor Nouel - Maimón": (18.9083, -70.2667), "Monseñor Nouel - Piedra Blanca": (18.8433, -70.3164),
-    # --- MONTE CRISTI ---
     "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450), "Monte Cristi - Villa Vásquez": (19.7431, -71.4489), "Monte Cristi - Guayubín": (19.6389, -71.3250), "Monte Cristi - Pepillo Salcedo (Manzanillo)": (19.7042, -71.7375),
-    # --- MONTE PLATA ---
     "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Monte Plata - Bayaguana": (18.7572, -69.6353), "Monte Plata - Yamasá": (18.7733, -70.0258), "Monte Plata - Sabana Grande de Boyá": (18.9444, -69.7936),
-    # --- PEDERNALES ---
     "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431), "Pedernales - Oviedo": (17.8056, -71.4014),
-    # --- PERAVIA ---
     "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Peravia - Nizao": (18.2464, -70.2111), "Peravia - Matanzas": (18.2567, -70.4214),
-    # --- PUERTO PLATA ---
     "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884), "Puerto Plata - Sosúa": (19.7667, -70.5167), "Puerto Plata - Cabarete": (19.7486, -70.4075), "Puerto Plata - Altamira": (19.6833, -70.8333), "Puerto Plata - Luperón": (19.8967, -70.9633),
-    # --- SAMANÁ ---
     "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "Samaná - Las Terrenas": (19.3217, -69.5331), "Samaná - Sánchez": (19.2278, -69.6139),
-    # --- SAN CRISTÓBAL ---
     "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112), "San Cristóbal - Bajos de Haina": (18.4150, -70.0333), "San Cristóbal - Villa Altagracia": (18.6750, -70.1708), "San Cristóbal - Yaguate": (18.3333, -70.1833),
-    # --- SAN JOSÉ DE OCOA ---
     "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San José de Ocoa - Sabana Larga": (18.5750, -70.5167), "San José de Ocoa - Rancho Arriba": (18.7333, -70.4667),
-    # --- SAN JUAN ---
     "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299), "San Juan - Las Matas de Farfán": (18.8731, -71.5164), "San Juan - El Cercado": (18.7333, -71.5167),
-    # --- SAN PEDRO DE MACORÍS ---
     "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "San Pedro de Macorís - Juan Dolio": (18.4239, -69.4161), "San Pedro de Macorís - Consuelo": (18.5333, -69.2833),
-    # --- SÁNCHEZ RAMÍREZ ---
     "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468), "Sánchez Ramírez - Fantino": (19.1167, -70.2167), "Sánchez Ramírez - Cevicos": (19.0333, -69.9833),
-    # --- SANTIAGO ---
     "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago - Villa González": (19.5333, -70.7833), "Santiago - Licey al Medio": (19.4333, -70.6000), "Santiago - Tamboril": (19.4833, -70.6000), "Santiago - San José de las Matas": (19.3389, -70.9389),
-    # --- SANTIAGO RODRÍGUEZ ---
     "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457), "Santiago Rodríguez - Monción": (19.4167, -71.1667),
-    # --- SANTO DOMINGO (PROVINCIA) ---
     "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Santo Domingo - Santo Domingo Norte": (18.5500, -69.9000), "Santo Domingo - Santo Domingo Oeste": (18.5000, -70.0000), "Santo Domingo - Boca Chica": (18.4500, -69.6000), "Santo Domingo - Los Alcarrizos": (18.5167, -70.0333),
-    # --- VALVERDE ---
     "Valverde - Mao (Cabecera)": (19.5517, -71.0779), "Valverde - Esperanza": (19.5833, -71.0000), "Valverde - Laguna Salada": (19.6500, -71.0833)
 }
 
@@ -484,7 +466,6 @@ st.markdown("---")
 # ==============================================================================
 uploaded = st.file_uploader("📂 Paso Final: Cargar Cronograma XML (MS Project)", type=['xml'])
 
-# Si el usuario sube un archivo nuevo, borramos la memoria para evitar resultados viejos
 if uploaded is not None and st.session_state.get('last_uploaded') != uploaded.name:
     st.session_state['simulacion_activa'] = False
     st.session_state['resultados_finales'] = None
@@ -516,14 +497,12 @@ if uploaded:
         prob = c_p.slider("Probabilidad Histórica Lluvia (%)", 0, 100, 30, help="Filtra los días que históricamente tienen esta probabilidad de llover.") / 100.0
         mm = c_m.slider("Intensidad Lluvia (mm/día)", 0.0, 50.0, 2.0, 0.5, help="Nivel de lluvia diario necesario para paralizar las actividades.")
         
-        # EL BOTÓN SOLO SIRVE PARA RE-CALCULAR Y GUARDAR EN MEMORIA
         if st.button("Ejecutar Cálculo y Optimizar Planificación", type="primary"):
             with st.spinner("Procesando topología matemática..."):
                 final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'])
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
                 
-        # AQUÍ SE MUESTRAN LOS RESULTADOS LEYENDO DESDE LA MEMORIA (Evita que desaparezcan al cliquear)
         if st.session_state['simulacion_activa'] and st.session_state['resultados_finales'] is not None:
             final = st.session_state['resultados_finales']
             
@@ -560,7 +539,6 @@ if uploaded:
                 df_s = df_s.sort_values('Fecha')
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
-                # CURVA S CON PLOTLY
                 fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
                                 color_discrete_map={'Base': '#808080', 'Sugerido': '#AF1E2D'},
                                 markers=True, line_shape='spline')
@@ -584,7 +562,6 @@ if uploaded:
                 else: st.info("Ninguna actividad superó los umbrales de lluvia seleccionados.")
                 
             with tab3:
-                # TABLA INTERACTIVA CON AGGRID (Con protección contra refresco automático)
                 df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
                 gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Nivel Riesgo']])
                 gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
@@ -597,7 +574,7 @@ if uploaded:
                        gridOptions=gridOptions, 
                        theme='alpine',
                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                       update_mode=GridUpdateMode.NO_UPDATE) # Esta línea evita el refresco al hacer clics internos
+                       update_mode=GridUpdateMode.NO_UPDATE)
 
             # --- EXPORTAR EXCEL ---
             b_out = io.BytesIO()
