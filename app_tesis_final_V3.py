@@ -432,6 +432,17 @@ m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_a
 folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
 map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
 
+# BLOQUE RESTAURADO: INTERACCIÓN CON EL CLIC EN EL MAPA
+if map_data and map_data.get('last_clicked'):
+    click_lat = map_data['last_clicked']['lat']
+    click_lon = map_data['last_clicked']['lng']
+    # Si las coordenadas clickeadas son diferentes a las actuales, actualiza
+    if abs(click_lat - st.session_state['lat_actual']) > 0.0001:
+        st.session_state['lat_actual'] = click_lat
+        st.session_state['lon_actual'] = click_lon
+        st.session_state['ubicacion_nombre'] = "Marcador Personalizado (Manual)"
+        st.rerun()
+
 st.markdown("---")
 
 # ==============================================================================
