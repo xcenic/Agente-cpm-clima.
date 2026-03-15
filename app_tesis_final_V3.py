@@ -59,15 +59,13 @@ if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_act
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
 # ==============================================================================
-# ENCABEZADO CON JERARQUÍA VISUAL (CHRONOFLUX COMO PROTAGONISTA)
+# ENCABEZADO MINIMALISTA (LOGO CENTRADO Y DE TAMAÑO CONTROLADO)
 # ==============================================================================
-col_intec, col_centro, col_vacia = st.columns([1, 3, 1])
+# Las columnas 1.5 a los lados aprietan la columna central (1) para que el logo no sea gigante
+col_izq, col_centro, col_der = st.columns([1.5, 1, 1.5])
 
-with col_intec:
-    try: 
-        st.image("logo_intec.png", use_container_width=True)
-    except: 
-        st.empty()
+with col_izq:
+    st.empty() # Espacio vacío a la izquierda
 
 with col_centro:
     try: 
@@ -75,8 +73,8 @@ with col_centro:
     except: 
         st.empty()
 
-with col_vacia:
-    st.empty()
+with col_der:
+    st.empty() # Espacio vacío a la derecha
 
 st.markdown("""
     <div class="mini-banner">
