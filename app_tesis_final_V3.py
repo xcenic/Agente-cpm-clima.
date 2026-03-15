@@ -1,26 +1,3 @@
-import streamlit as st
-import pandas as pd
-import xml.etree.ElementTree as ET
-import requests
-import io
-import re
-import math
-from datetime import datetime, timedelta, date
-
-# NUEVAS LIBRERÍAS PREMIUM (Ruta 1)
-import plotly.express as px
-import plotly.graph_objects as go
-from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode, GridUpdateMode
-
-# LIBRERÍAS DE MAPA Y GRAFOS
-try:
-    import folium
-    from streamlit_folium import st_folium
-    import networkx as nx
-except ImportError:
-    st.error("⚠️ Falta instalar librerías. Ejecuta: pip install folium streamlit-folium networkx plotly streamlit-aggrid")
-    st.stop()
-
 # ==============================================================================
 # 1. CONFIGURACIÓN Y ESTILO (Modo CHRONOFLUX)
 # ==============================================================================
@@ -29,13 +6,12 @@ st.set_page_config(page_title="CHRONOFLUX | CPM + IA", layout="wide", page_icon=
 st.markdown("""
     <style>
         .stApp { background-color: #F4F6F9; color: #333333; font-family: 'Segoe UI', sans-serif; }
-        .main-banner {
-            background: linear-gradient(135deg, #AF1E2D 0%, #7A1520 100%); color: white; padding: 25px;
-            border-radius: 12px; text-align: center; margin-bottom: 25px;
-            box-shadow: 0 10px 20px rgba(175, 30, 45, 0.2);
+        .mini-banner {
+            background: linear-gradient(135deg, #AF1E2D 0%, #7A1520 100%); color: white; padding: 12px;
+            border-radius: 8px; text-align: center; margin-bottom: 25px;
+            box-shadow: 0 4px 10px rgba(175, 30, 45, 0.2);
+            font-size: 1.1em; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
         }
-        .main-banner h1 { color: white !important; margin: 0; font-size: 3em; font-weight: 900; letter-spacing: 3px; font-family: 'Courier New', monospace; }
-        .main-banner p { color: #f8d7da !important; margin: 5px 0 0 0; font-size: 1.2em; font-weight: 400; text-transform: uppercase; letter-spacing: 1px;}
         [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E0E0E0; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
         .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 10px 20px;}
         .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(175, 30, 45, 0.3); background-color: #901924; }
@@ -60,31 +36,31 @@ if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_act
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
 # ==============================================================================
-# ENCABEZADO CON DOBLE LOGO (INTEC + CHRONOFLUX)
+# ENCABEZADO CON JERARQUÍA VISUAL (CHRONOFLUX COMO PROTAGONISTA)
 # ==============================================================================
-col_logo_izq, col_banner, col_logo_der = st.columns([1, 4, 1])
+col_intec, col_centro, col_vacia = st.columns([1, 3, 1])
 
-with col_logo_izq:
+with col_intec:
     try: 
         st.image("logo_intec.png", use_container_width=True)
     except: 
         st.empty()
 
-with col_banner:
-    st.markdown("""
-        <div class="main-banner">
-            <h1>CHRONOFLUX</h1>
-            <p>Motor de Simulación Climática y Optimización de Rutas Críticas</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_logo_der:
+with col_centro:
     try: 
-        # Asegúrate de que el nombre de tu archivo de imagen coincida con esto
         st.image("logo_chronoflux.png", use_container_width=True)
     except: 
         st.empty()
 
+with col_vacia:
+    st.empty() # Mantiene el balance central
+
+# La barra roja ahora es delgada y elegante, sin quitarle protagonismo al logo
+st.markdown("""
+    <div class="mini-banner">
+        Motor de Simulación Climática y Optimización de Rutas Críticas
+    </div>
+""", unsafe_allow_html=True)
 # ==============================================================================
 # 2. MANUAL DETALLADO DE USUARIO
 # ==============================================================================
