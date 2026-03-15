@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import xml.etree.ElementTree as ET
 import requests
@@ -61,11 +62,10 @@ if 'resultados_finales' not in st.session_state: st.session_state['resultados_fi
 # ==============================================================================
 # ENCABEZADO MINIMALISTA (LOGO CENTRADO Y DE TAMAÑO CONTROLADO)
 # ==============================================================================
-# Las columnas 1.5 a los lados aprietan la columna central (1) para que el logo no sea gigante
 col_izq, col_centro, col_der = st.columns([1.5, 1, 1.5])
 
 with col_izq:
-    st.empty() # Espacio vacío a la izquierda
+    st.empty()
 
 with col_centro:
     try: 
@@ -74,7 +74,7 @@ with col_centro:
         st.empty()
 
 with col_der:
-    st.empty() # Espacio vacío a la derecha
+    st.empty()
 
 st.markdown("""
     <div class="mini-banner">
@@ -432,13 +432,6 @@ m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_a
 folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
 map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
 
-if map_data and map_data.get('last_clicked'):
-    click_lat = map_data['last_clicked']['lat']; click_lon = map_data['last_clicked']['lng']
-    if abs(click_lat - st.session_state['lat_actual']) > 0.0001:
-        st.session_state['lat_actual'] = click_lat; st.session_state['lon_actual'] = click_lon
-        st.session_state['ubicacion_nombre'] = "Marcador Personalizado (Manual)"
-        st.rerun()
-
 st.markdown("---")
 
 # ==============================================================================
@@ -455,6 +448,22 @@ with st.spinner("Descargando micro-clima (Últimos 10 años)..."):
         fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgb(8,48,107)', marker_line_width=1.5, opacity=0.8)
         fig_clima.update_layout(plot_bgcolor='white', yaxis=dict(showgrid=True, gridcolor='#E0E0E0'), xaxis_title=None, height=400)
         st.plotly_chart(fig_clima, use_container_width=True)
+
+st.markdown("---")
+
+# ==============================================================================
+# RADAR EN TIEMPO REAL (WINDY API)
+# ==============================================================================
+st.subheader(f"📡 Radar Satelital en Tiempo Real ({st.session_state['ubicacion_nombre']})")
+st.markdown("Visualización en vivo de frentes de lluvia y nubosidad para toma de decisiones tácticas de campo.")
+
+windy_html = f"""
+<iframe width="100%" height="450" 
+    src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=9&overlay=rain&product=ecmwf&level=surface&lat={st.session_state['lat_actual']}&lon={st.session_state['lon_actual']}" 
+    frameborder="0" style="border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+</iframe>
+"""
+components.html(windy_html, height=450)
 
 st.markdown("---")
 
