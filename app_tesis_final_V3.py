@@ -8,7 +8,7 @@ import re
 import math
 from datetime import datetime, timedelta, date
 
-# NUEVAS LIBRERÍAS PREMIUM (Ruta 1)
+# NUEVAS LIBRERÍAS PREMIUM
 import plotly.express as px
 import plotly.graph_objects as go
 from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode, GridUpdateMode
@@ -102,7 +102,7 @@ with st.expander("📘 MANUAL OPERATIVO DEL SISTEMA (Clic para desplegar)"):
     <div class="manual-section">
         <h4>Paso 2: Geolocalización</h4>
         <ul>
-            <li>Use el menú desplegable para seleccionar una provincia/municipio o <b>haga clic en el mapa</b> para coordenadas exactas.</li>
+            <li>Use el menú desplegable para seleccionar una provincia/municipio o <b>haga clic en el mapa</b> para hacer ping de coordenadas exactas.</li>
         </ul>
     </div>
     <div class="manual-section">
@@ -442,9 +442,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
         res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
         res_temp[tid]['Nivel Riesgo'] = "Crítico (Ruta Mutada)" if (tf_days <= 0 and res_temp[tid]['IsRain']) else ("Alto" if res_temp[tid]['Días Impacto'] > 5 else ("Medio" if res_temp[tid]['Días Impacto'] > 0 else "Bajo"))
 
-  df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
+    df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
 
-    # Liberar la restricción numérica de la columna para aceptar el guion "-"
+    # PARCHE APLICADO: Liberar la restricción numérica de la columna para aceptar el guion "-"
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
 
     for i in df_res[df_res['IsSummary'] == True].index:
@@ -494,8 +494,20 @@ st.selectbox("📍 Buscar Ubicación de Proyecto:", sorted(list(COORDENADAS_RD.k
 st.markdown(f"**Coordenadas Seleccionadas:** `Latitud: {st.session_state['lat_actual']:.4f}, Longitud: {st.session_state['lon_actual']:.4f}`")
 
 m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_actual']], zoom_start=12)
+m.add_child(folium.LatLngPopup()) # Habilita el evento de clic en el mapa
 folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
 map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
+
+# Lógica del Ping (Clic en el mapa)
+if map_data and map_data.get("last_clicked"):
+    lat_c = map_data["last_clicked"]["lat"]
+    lon_c = map_data["last_clicked"]["lng"]
+    # Comparamos para no hacer un bucle infinito de recargas
+    if round(lat_c, 4) != round(st.session_state['lat_actual'], 4) or round(lon_c, 4) != round(st.session_state['lon_actual'], 4):
+        st.session_state['lat_actual'] = lat_c
+        st.session_state['lon_actual'] = lon_c
+        st.session_state['ubicacion_nombre'] = f"Pin Manual: {lat_c:.4f}, {lon_c:.4f}"
+        st.rerun()
 
 st.markdown("---")
 
