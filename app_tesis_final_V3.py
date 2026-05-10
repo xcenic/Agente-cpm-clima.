@@ -442,7 +442,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
         res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
         res_temp[tid]['Nivel Riesgo'] = "Crítico (Ruta Mutada)" if (tf_days <= 0 and res_temp[tid]['IsRain']) else ("Alto" if res_temp[tid]['Días Impacto'] > 5 else ("Medio" if res_temp[tid]['Días Impacto'] > 0 else "Bajo"))
 
-    df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
+  df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
+
+    # Liberar la restricción numérica de la columna para aceptar el guion "-"
+    df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
 
     for i in df_res[df_res['IsSummary'] == True].index:
         wbs_prefix = str(df_res.at[i, 'WBS']) + '.'
