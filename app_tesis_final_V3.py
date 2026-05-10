@@ -60,7 +60,7 @@ if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_act
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
 # ==============================================================================
-# ENCABEZADO MINIMALISTA (LOGO CENTRADO Y DE TAMAÑO CONTROLADO)
+# ENCABEZADO MINIMALISTA
 # ==============================================================================
 col_izq, col_centro, col_der = st.columns([1.5, 1, 1.5])
 
@@ -210,7 +210,8 @@ def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
         return df_grafico, clima_map, list(mapa_meses.values())
     except: return None, None, None
 
-def redondear_duracion(val): return int(val + 0.5)
+# REDONDEO MEJORADO PARA ACEPTAR DECIMALES DE LA CUANTIZACIÓN
+def redondear_duracion(val): return round(float(val), 2)
 
 def auditar_xml(file):
     tree = ET.parse(file)
@@ -280,9 +281,9 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# ALGORITMO CPM - EXPECTED VALUE BUFFER Y BACKWARD PASS (V8)
+# ALGORITMO CPM - EXPECTED VALUE BUFFER, BACKWARD PASS Y CUANTIZACIÓN V8
 # ==============================================================================
-def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar):
+def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin):
     G = nx.DiGraph()
     # 1. CONSTRUCCIÓN DEL GRAFO (DAG)
     for _, row in df.iterrows():
@@ -303,6 +304,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
         
     fecha_fin_calculada = {}
     res_temp = {}
+    jornada_horas = h_fin - h_inicio if h_fin > h_inicio else 8
     
     # --------------------------------------------------------------------------
     # FASE 1: FORWARD PASS (Paso hacia adelante - Inyección de EVB)
@@ -334,7 +336,8 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
                 
         new_finish = finish_dt
         new_dur_float = base_dur_float
-        stats_prob, stats_mm, rain_total, dias_retraso = 0, 0, 0.0, 0
+        stats_prob, stats_mm, rain_total = 0, 0, 0.0
+        retraso_teorico_dias = 0.0
         last_rain_date = None
         
         if not row['IsSummary'] and not row['IsMilestone'] and new_start:
@@ -351,18 +354,42 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
                         stats_prob = max(stats_prob, h['probabilidad'])
                         if h['probabilidad'] >= prob_min and h['mm_promedio'] >= mm_min:
                             stats_mm = max(stats_mm, h['mm_promedio'])
-                            dias_retraso += 1
+                            # CÁLCULO ESTOCÁSTICO: El retraso es proporcional a la probabilidad de lluvia
+                            retraso_teorico_dias += h['probabilidad']
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
                     work_done += 1 
                 cursor += timedelta(days=1)
                 
-            buffer_restante = dias_retraso
+            # --- LÓGICA DE CUANTIZACIÓN (El nivel Dios) ---
+            parte_entera = math.floor(retraso_teorico_dias)
+            parte_decimal = retraso_teorico_dias - parte_entera
+            horas_fraccion = parte_decimal * jornada_horas
+            nota_cuantizacion = ""
+            
+            if 0 < horas_fraccion < umbral_horas:
+                # Ineficiencia operativa: Las horas restantes no alcanzan el umbral mínimo.
+                # Se redondea (cuantiza) perdiendo ese bloque de medio día o día entero.
+                if parte_decimal <= 0.5:
+                    retraso_cuantizado = parte_entera + 0.5
+                else:
+                    retraso_cuantizado = parte_entera + 1.0
+                nota_cuantizacion = f" (Cuantizado: de {retraso_teorico_dias:.2f} a {retraso_cuantizado}d)"
+            else:
+                retraso_cuantizado = round(retraso_teorico_dias, 2)
+            
+            if note == "OK" and retraso_cuantizado > 0:
+                note = f"Impacto Clima{nota_cuantizacion}"
+            elif note != "OK" and retraso_cuantizado > 0:
+                note += f" | Impacto Clima{nota_cuantizacion}"
+            
+            # Aplicamos el retraso al calendario (convirtiendo a int para saltar días físicos)
+            buffer_restante = math.ceil(retraso_cuantizado)
             while buffer_restante > 0:
                 if es_habil(cursor, dias_idx, feriados): buffer_restante -= 1
                 cursor += timedelta(days=1)
                 
             new_finish = cursor - timedelta(days=1)
-            new_dur_float = base_dur_float + dias_retraso
+            new_dur_float = base_dur_float + retraso_cuantizado
             
         elif row['IsMilestone']:
             new_dur_float = 0
@@ -437,24 +464,22 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
         node['TF'] = tf_days
         node['is_critical'] = (tf_days <= 0)
         
-        # Actualizamos el diccionario temporal con los nuevos datos estocásticos
+        # Actualizamos el diccionario temporal
         res_temp[tid]['Holgura (Días)'] = tf_days
         res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
         res_temp[tid]['Nivel Riesgo'] = "Crítico (Ruta Mutada)" if (tf_days <= 0 and res_temp[tid]['IsRain']) else ("Alto" if res_temp[tid]['Días Impacto'] > 5 else ("Medio" if res_temp[tid]['Días Impacto'] > 0 else "Bajo"))
 
     df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
 
-    # PARCHE APLICADO: Liberar la restricción numérica de la columna para aceptar el guion "-"
+    # PARCHE APLICADO: Liberar la restricción numérica
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
 
     for i in df_res[df_res['IsSummary'] == True].index:
         wbs_val = str(df_res.at[i, 'WBS'])
         wbs_prefix = wbs_val + '.'
         
-        # Obtener tareas hijas
         children = df_res[(df_res['WBS'].astype(str).str.startswith(wbs_prefix)) & (df_res['IsSummary'] == False)]
         
-        # EXCEPCIÓN: Si es la Tarea Resumen Raíz del Proyecto (ID 0), tomar todas las tareas
         if children.empty and (df_res.at[i, 'ID'] == 0 or wbs_val == '0' or wbs_val == 'None'):
             children = df_res[df_res['IsSummary'] == False]
             
@@ -465,23 +490,17 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
             if pd.notna(min_start): df_res.at[i, 'Inicio Nuevo'] = min_start
             if pd.notna(max_finish): df_res.at[i, 'Fin Nuevo'] = max_finish
             
-            # --- NUEVA LÓGICA: RECALCULAR DURACIÓN DEL RESUMEN EXPANDIDO ---
             if pd.notna(min_start) and pd.notna(max_finish) and max_finish >= min_start:
                 c_dias = 0
                 cursor = min_start
-                # Contar días hábiles reales entre el nuevo inicio y el nuevo fin
                 while cursor <= max_finish:
                     if es_habil(cursor, dias_idx, feriados):
                         c_dias += 1
                     cursor += timedelta(days=1)
                 
                 df_res.at[i, 'Duración Nueva'] = c_dias
-                
-                # El impacto de un resumen es la diferencia entre su nueva duración y la base
                 impacto_resumen = c_dias - df_res.at[i, 'Duración Base']
                 df_res.at[i, 'Días Impacto'] = impacto_resumen
-                
-                # Pintar el riesgo para el Excel
                 df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Bajo"
             else:
                 df_res.at[i, 'Días Impacto'] = 0
@@ -534,7 +553,6 @@ map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
 if map_data and map_data.get("last_clicked"):
     lat_c = map_data["last_clicked"]["lat"]
     lon_c = map_data["last_clicked"]["lng"]
-    # Comparamos para no hacer un bucle infinito de recargas
     if round(lat_c, 4) != round(st.session_state['lat_actual'], 4) or round(lon_c, 4) != round(st.session_state['lon_actual'], 4):
         st.session_state['lat_actual'] = lat_c
         st.session_state['lon_actual'] = lon_c
@@ -607,14 +625,16 @@ if uploaded:
 
     if st.session_state['audit_decision']:
         st.markdown("### 🚀 Simulación de Ruta Crítica")
-        c_p, c_m = st.columns(2)
         
-        prob = c_p.slider("Probabilidad Histórica Lluvia (%)", 0, 100, 30, help="Filtra los días que históricamente tienen esta probabilidad de llover.") / 100.0
-        mm = c_m.slider("Intensidad Lluvia (mm/día)", 0.0, 50.0, 2.0, 0.5, help="Nivel de lluvia diario necesario para paralizar las actividades.")
+        # NUEVOS CONTROLES DE LA UI (INCLUYENDO EL UMBRAL)
+        c_p, c_m, c_u = st.columns(3)
+        prob = c_p.slider("Probabilidad Lluvia (%)", 0, 100, 30, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
+        mm = c_m.slider("Intensidad (mm/día)", 0.0, 50.0, 2.0, 0.5, help="Nivel de lluvia necesario para paralizar la actividad.")
+        umbral_horas = c_u.slider("Umbral Mínimo (Horas)", 1.0, 4.0, 2.0, 0.5, help="Si la fracción de horas operables es menor a este umbral, el sistema cuantizará perdiendo la jornada.")
         
         if st.button("Ejecutar Cálculo y Optimizar Planificación", type="primary"):
             with st.spinner("Procesando topología matemática..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'])
+                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
                 
@@ -678,14 +698,15 @@ if uploaded:
                 
             with tab3:
                 df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
-                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo']])
+                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo', 'Estado']])
                 gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
                 gb.configure_default_column(resizable=True, filterable=True, sortable=True)
                 gb.configure_column("Actividad", width=400)
+                gb.configure_column("Estado", width=350)
                 gridOptions = gb.build()
                 
                 st.markdown("*(Puedes dar clic en los encabezados para filtrar o mover las columnas)*")
-                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo']], 
+                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo', 'Estado']], 
                        gridOptions=gridOptions, 
                        theme='alpine',
                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
