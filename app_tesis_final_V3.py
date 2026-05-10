@@ -280,10 +280,11 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# ALGORITMO CPM - EXPECTED VALUE BUFFER
+# ALGORITMO CPM - EXPECTED VALUE BUFFER Y BACKWARD PASS (V8)
 # ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar):
     G = nx.DiGraph()
+    # 1. CONSTRUCCIÓN DEL GRAFO (DAG)
     for _, row in df.iterrows():
         tid = row['ID']
         G.add_node(tid, data=row.to_dict())
@@ -301,8 +302,11 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
     except nx.NetworkXUnfeasible: orden = df['ID'].tolist() 
         
     fecha_fin_calculada = {}
-    res = []
+    res_temp = {}
     
+    # --------------------------------------------------------------------------
+    # FASE 1: FORWARD PASS (Paso hacia adelante - Inyección de EVB)
+    # --------------------------------------------------------------------------
     for tid in orden:
         row = G.nodes[tid]['data']
         new_preds = G.nodes[tid]['new_preds']
@@ -365,25 +369,80 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
             if new_start: new_finish = new_start
                 
         fecha_fin_calculada[tid] = new_finish
-        dur_base_final = redondear_duracion(base_dur_float)
-        dur_nueva_final = redondear_duracion(new_dur_float)
-        dias_impacto_final = dur_nueva_final - dur_base_final
-
-        res.append({
-            'ID': tid, 'WBS': row['WBS'], 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
-            'Duración Base': dur_base_final, 'Inicio Base': start_dt, 'Fin Base': finish_dt,
-            'Duración Nueva': dur_nueva_final, 'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish,
-            'Pred. Orig': row['OrigPreds'], 'Pred. Nueva': new_preds,
-            'Prob. Lluvia': f"{stats_prob:.0%}" if stats_prob > 0 else "-",
-            'mm Lluvia Max': round(stats_mm, 1) if stats_mm > 0 else "-",
-            'Lluvia Total Acum (mm)': round(rain_total, 1),
-            'Fecha Última Lluvia': last_rain_date if last_rain_date else "-",
-            'Días Impacto': dias_impacto_final, 'Estado': note,
-            'Nivel Riesgo': "Bajo" if dias_impacto_final == 0 else ("Medio" if dias_impacto_final <= 5 else "Alto"),
-            'IsRain': (dias_impacto_final > 0), 'IsLogic': (new_preds != row['OrigPreds']) 
-        })
         
-    df_res = pd.DataFrame(res).sort_values('ID')
+        # Guardar en memoria para el Backward Pass
+        G.nodes[tid]['ES'] = new_start
+        G.nodes[tid]['EF'] = new_finish
+        G.nodes[tid]['dur_ajustada'] = new_dur_float
+
+        res_temp[tid] = {
+            'ID': tid, 'WBS': row['WBS'], 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
+            'Duración Base': redondear_duracion(base_dur_float), 'Inicio Base': start_dt, 'Fin Base': finish_dt,
+            'Duración Nueva': redondear_duracion(new_dur_float), 'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish,
+            'Pred. Orig': row['OrigPreds'], 'Pred. Nueva': new_preds,
+            'Prob. Lluvia': f"{stats_prob:.0%}" if stats_prob > 0 else "-", 'mm Lluvia Max': round(stats_mm, 1) if stats_mm > 0 else "-",
+            'Lluvia Total Acum (mm)': round(rain_total, 1), 'Fecha Última Lluvia': last_rain_date if last_rain_date else "-",
+            'Días Impacto': redondear_duracion(new_dur_float) - redondear_duracion(base_dur_float), 'Estado': note,
+            'IsRain': ((redondear_duracion(new_dur_float) - redondear_duracion(base_dur_float)) > 0), 'IsLogic': (new_preds != row['OrigPreds']) 
+        }
+
+    # --------------------------------------------------------------------------
+    # FASE 2: BACKWARD PASS Y CÁLCULO DE HOLGURAS (La mutación de Ruta Crítica)
+    # --------------------------------------------------------------------------
+    valid_efs = [data['EF'] for n, data in G.nodes(data=True) if data.get('EF') is not None]
+    max_project_ef = max(valid_efs) if valid_efs else None
+
+    for tid in reversed(orden):
+        node = G.nodes[tid]
+        if node.get('EF') is None: continue
+
+        succs = list(G.successors(tid))
+        if not succs:
+            node['LF'] = max_project_ef
+        else:
+            valid_ls = [G.nodes[s].get('LS') for s in succs if G.nodes[s].get('LS') is not None]
+            if valid_ls:
+                min_succ_ls = min(valid_ls)
+                cursor = min_succ_ls - timedelta(days=1)
+                while not es_habil(cursor, dias_idx, feriados):
+                    cursor -= timedelta(days=1)
+                node['LF'] = cursor
+            else:
+                node['LF'] = max_project_ef
+
+        dur = math.ceil(node.get('dur_ajustada', 0))
+        cursor = node['LF']
+        if dur > 1:
+            days_stepped = 1
+            while days_stepped < dur:
+                cursor -= timedelta(days=1)
+                if es_habil(cursor, dias_idx, feriados): days_stepped += 1
+        node['LS'] = cursor
+
+        # Cálculo de la Holgura Total (TF = Días hábiles entre EF y LF)
+        ef = node['EF']
+        lf = node['LF']
+        tf_days = 0
+        if ef and lf and lf >= ef:
+            c = ef
+            while c < lf:
+                c += timedelta(days=1)
+                if es_habil(c, dias_idx, feriados): tf_days += 1
+        elif ef and lf and lf < ef:
+            c = lf
+            while c < ef:
+                c += timedelta(days=1)
+                if es_habil(c, dias_idx, feriados): tf_days -= 1
+
+        node['TF'] = tf_days
+        node['is_critical'] = (tf_days <= 0)
+        
+        # Actualizamos el diccionario temporal con los nuevos datos estocásticos
+        res_temp[tid]['Holgura (Días)'] = tf_days
+        res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
+        res_temp[tid]['Nivel Riesgo'] = "Crítico (Ruta Mutada)" if (tf_days <= 0 and res_temp[tid]['IsRain']) else ("Alto" if res_temp[tid]['Días Impacto'] > 5 else ("Medio" if res_temp[tid]['Días Impacto'] > 0 else "Bajo"))
+
+    df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
 
     for i in df_res[df_res['IsSummary'] == True].index:
         wbs_prefix = str(df_res.at[i, 'WBS']) + '.'
@@ -395,6 +454,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
             if pd.notna(max_finish): df_res.at[i, 'Fin Nuevo'] = max_finish
             df_res.at[i, 'Días Impacto'] = 0; df_res.at[i, 'Nivel Riesgo'] = "N/A"
             df_res.at[i, 'Prob. Lluvia'] = "-"; df_res.at[i, 'mm Lluvia Max'] = "-"
+            df_res.at[i, 'Holgura (Días)'] = "-"
+            df_res.at[i, 'Ruta Crítica'] = "-"
+            
     return df_res
 
 # ==============================================================================
@@ -431,17 +493,6 @@ st.markdown(f"**Coordenadas Seleccionadas:** `Latitud: {st.session_state['lat_ac
 m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_actual']], zoom_start=12)
 folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
 map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
-
-# BLOQUE RESTAURADO: INTERACCIÓN CON EL CLIC EN EL MAPA
-if map_data and map_data.get('last_clicked'):
-    click_lat = map_data['last_clicked']['lat']
-    click_lon = map_data['last_clicked']['lng']
-    # Si las coordenadas clickeadas son diferentes a las actuales, actualiza
-    if abs(click_lat - st.session_state['lat_actual']) > 0.0001:
-        st.session_state['lat_actual'] = click_lat
-        st.session_state['lon_actual'] = click_lon
-        st.session_state['ubicacion_nombre'] = "Marcador Personalizado (Manual)"
-        st.rerun()
 
 st.markdown("---")
 
@@ -580,14 +631,14 @@ if uploaded:
                 
             with tab3:
                 df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
-                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Nivel Riesgo']])
+                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo']])
                 gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
                 gb.configure_default_column(resizable=True, filterable=True, sortable=True)
                 gb.configure_column("Actividad", width=400)
                 gridOptions = gb.build()
                 
                 st.markdown("*(Puedes dar clic en los encabezados para filtrar o mover las columnas)*")
-                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Nivel Riesgo']], 
+                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo']], 
                        gridOptions=gridOptions, 
                        theme='alpine',
                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
@@ -632,7 +683,7 @@ if uploaded:
                     if is_summary:
                         row_fmt = fmt_summary
                         row_date_fmt = fmt_summary_date
-                    elif risk == "Alto":
+                    elif risk == "Alto" or risk == "Crítico (Ruta Mutada)":
                         row_fmt = fmt_high
                         row_date_fmt = fmt_high_date
                     elif risk == "Medio":
