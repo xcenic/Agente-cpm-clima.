@@ -7,3 +7,4 @@ xlsxwriter
 requests
 plotly
 streamlit-aggrid
+streamlit-lottie
