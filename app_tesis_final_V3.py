@@ -421,7 +421,7 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# ALGORITMO CPM - EXPECTED VALUE BUFFER, BACKWARD PASS Y CUANTIZACIÓN V8
+# ALGORITMO CPM - EXPECTED VALUE BUFFER, MATRIZ GEOTÉCNICA Y CUANTIZACIÓN V8
 # ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin):
     G = nx.DiGraph()
@@ -444,6 +444,19 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     fecha_fin_calculada = {}
     res_temp = {}
     jornada_horas = h_fin - h_inicio if h_fin > h_inicio else 8
+
+    # --- MATRIZ GEOTÉCNICA DE IMPACTO CONSTRUCTIVO (Ic) ---
+    def calcular_ic(nombre_tarea):
+        nombre = str(nombre_tarea).lower()
+        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla']):
+            return 1.0
+        elif any(palabra in nombre for palabra in ['asfalto', 'imprimacion', 'imprimación', 'pintura', 'señalizacion', 'señalización']):
+            return 1.5
+        elif any(palabra in nombre for palabra in ['base', 'subbase', 'sub-base', 'granular', 'afirmado']):
+            return 2.0
+        elif any(palabra in nombre for palabra in ['corte', 'relleno', 'subrasante', 'tierra', 'excavacion', 'excavación']):
+            return 3.0
+        return 1.5 
     
     for tid in orden:
         row = G.nodes[tid]['data']
@@ -475,6 +488,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         stats_prob, stats_mm, rain_total = 0, 0, 0.0
         retraso_teorico_dias = 0.0
         last_rain_date = None
+
+        # IDENTIFICAMOS EL IMPACTO CONSTRUCTIVO REAL SEGÚN EL TEXTO DE LA TESIS
+        impacto_constructivo_ic = calcular_ic(row['Name'])
         
         if not row['IsSummary'] and not row['IsMilestone'] and new_start:
             work_needed = math.ceil(base_dur_float) if base_dur_float > 0 else 1
@@ -490,7 +506,8 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         stats_prob = max(stats_prob, h['probabilidad'])
                         if h['probabilidad'] >= prob_min and h['mm_promedio'] >= mm_min:
                             stats_mm = max(stats_mm, h['mm_promedio'])
-                            retraso_teorico_dias += h['probabilidad']
+                            # MATEMÁTICA REAL DE LA TESIS: EVB = P(R) * Ic
+                            retraso_teorico_dias += (h['probabilidad'] * impacto_constructivo_ic)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
                     work_done += 1 
                 cursor += timedelta(days=1)
@@ -510,9 +527,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                 retraso_cuantizado = round(retraso_teorico_dias, 2)
             
             if note == "OK" and retraso_cuantizado > 0:
-                note = f"Impacto Clima{nota_cuantizacion}"
+                note = f"Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
             elif note != "OK" and retraso_cuantizado > 0:
-                note += f" | Impacto Clima{nota_cuantizacion}"
+                note += f" | Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
             
             buffer_restante = math.ceil(retraso_cuantizado)
             while buffer_restante > 0:
@@ -693,9 +710,7 @@ with st.spinner("Accediendo al caché geoespacial o descargando micro-clima...")
                            hover_data={'prob_lluvia': ':.1%'},
                            labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
         
-        # CORRECCIÓN DE ERROR EN NUBE: Se removió marker_corner_radius para compatibilidad
         fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-        
         fig_clima.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
         st.plotly_chart(fig_clima, use_container_width=True)
 
@@ -841,9 +856,7 @@ if uploaded:
                     
                     fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#3B82F6'])
                     
-                    # CORRECCIÓN DE ERROR EN NUBE: Se removió marker_corner_radius para compatibilidad
                     fig_riesgo.update_traces(textposition='outside')
-                    
                     fig_riesgo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
                     fig_riesgo.update_yaxes(showgrid=True, gridcolor='#E2E8F0')
                     st.plotly_chart(fig_riesgo, use_container_width=True)
