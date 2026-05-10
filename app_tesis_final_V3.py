@@ -24,26 +24,179 @@ except ImportError:
     st.stop()
 
 # ==============================================================================
-# 1. CONFIGURACIÓN Y ESTILO (Modo CHRONOFLUX SaaS)
+# 1. CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS 2026)
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | CPM + IA", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="CHRONOFLUX | Motor CPM", layout="wide", page_icon="⚡")
 
+# Inyección de CSS Avanzado
 st.markdown("""
     <style>
-        .stApp { background-color: #F8F9FA; color: #212529; font-family: 'Segoe UI', sans-serif; }
-        .mini-banner {
-            background: linear-gradient(135deg, #AF1E2D 0%, #7A1520 100%); color: white; padding: 12px;
-            border-radius: 8px; text-align: center; margin-bottom: 25px;
-            box-shadow: 0 4px 10px rgba(175, 30, 45, 0.2);
-            font-size: 1.1em; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+        /* Importar fuente moderna y limpia */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        /* Aplicar fuente a todo */
+        html, body, [class*="css"]  {
+            font-family: 'Inter', sans-serif !important;
         }
-        [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E9ECEF; box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
-        .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 10px 20px;}
-        .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(175, 30, 45, 0.3); background-color: #901924; }
-        .manual-section { background-color: white; padding: 20px; border-radius: 8px; border-left: 4px solid #AF1E2D; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
-        .manual-section h4 { color: #AF1E2D; margin-top: 0; font-weight: 700;}
-        /* Estilos para que las métricas nativas resalten */
-        [data-testid="stMetricValue"] { color: #AF1E2D; font-weight: 900; }
+        
+        /* Fondo de la aplicación (Gris muy claro, estilo Dashboard) */
+        .stApp {
+            background-color: #F4F7F9;
+        }
+
+        /* Ocultar elementos de menú predeterminados de Streamlit para un look más limpio */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+
+        /* Banner Principal Moderno (Gradiente oscuro con acento rojo) */
+        .modern-banner {
+            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            color: #FFFFFF;
+            padding: 24px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-bottom: 4px solid #AF1E2D;
+            position: relative;
+            overflow: hidden;
+        }
+        .modern-banner h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+        .modern-banner p {
+            font-size: 1.1rem;
+            color: #94A3B8;
+            margin-top: 8px;
+            margin-bottom: 0;
+            font-weight: 400;
+        }
+
+        /* Estilo del Sidebar */
+        [data-testid="stSidebar"] {
+            background-color: #FFFFFF;
+            border-right: 1px solid #E2E8F0;
+        }
+        
+        /* Botones primarios redondeados con Hover Effects */
+        .stButton>button {
+            background-color: #AF1E2D;
+            color: white !important;
+            border-radius: 12px;
+            border: none;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            box-shadow: 0 4px 6px -1px rgba(175, 30, 45, 0.2);
+        }
+        .stButton>button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(175, 30, 45, 0.3);
+            background-color: #901924;
+        }
+
+        /* Contenedores blancos (Tarjetas de contenido) */
+        .css-1r6slb0, .css-18e3th9, .css-1d391kg {
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #F1F5F9;
+        }
+
+        /* Secciones del Manual (Neumorfismo plano) */
+        .manual-section {
+            background-color: #F8FAFC;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #3B82F6; /* Acento azul para información */
+            margin-bottom: 16px;
+            border-top: 1px solid #E2E8F0;
+            border-right: 1px solid #E2E8F0;
+            border-bottom: 1px solid #E2E8F0;
+        }
+        .manual-section h4 {
+            color: #1E293B;
+            margin-top: 0;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        .manual-section ul { color: #475569; }
+
+        /* --- NUEVO SISTEMA DE KPIs ESTILO ENTERPRISE --- */
+        .kpi-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .kpi-box {
+            background-color: #FFFFFF;
+            border-radius: 16px;
+            padding: 24px;
+            flex: 1;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #E2E8F0;
+            transition: transform 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .kpi-box:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        /* Línea de acento superior en los KPIs */
+        .kpi-box::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background-color: #AF1E2D;
+        }
+        .kpi-title {
+            font-size: 0.85rem;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #0F172A;
+            line-height: 1.2;
+        }
+        .kpi-value span { font-size: 1.2rem; font-weight: 600; color: #94A3B8; }
+        .kpi-value.danger { color: #EF4444; }
+        .kpi-subtitle {
+            font-size: 0.85rem;
+            color: #94A3B8;
+            margin-top: 8px;
+        }
+
+        /* Pestañas (Tabs) de Streamlit personalizadas */
+        [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: #FFFFFF;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1);
+        }
+        [data-baseweb="tab"] {
+            padding: 10px 20px !important;
+            border-radius: 8px !important;
+            background-color: transparent !important;
+            border: none !important;
+        }
+        [aria-selected="true"] {
+            background-color: #F1F5F9 !important;
+            color: #AF1E2D !important;
+            font-weight: 600 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,37 +220,35 @@ if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_act
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
 # ==============================================================================
-# ENCABEZADO MINIMALISTA
+# ENCABEZADO MINIMALISTA (Logo pequeño + Banner CSS)
 # ==============================================================================
-col_izq, col_centro, col_der = st.columns([1.5, 1, 1.5])
-with col_izq: st.empty()
+col_izq, col_centro, col_der = st.columns([2, 1, 2])
 with col_centro:
     try: st.image("logo_chronoflux.png", use_container_width=True)
     except: st.empty()
-with col_der: st.empty()
 
 st.markdown("""
-    <div class="mini-banner">
-        Motor de Simulación Climática y Optimización de Rutas Críticas
+    <div class="modern-banner">
+        <h1>CHRONOFLUX AI</h1>
+        <p>Motor de Simulación Climática y Optimización Topológica CPM</p>
     </div>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
 # 2. MANUAL DETALLADO DE USUARIO
 # ==============================================================================
-with st.expander("📘 MANUAL OPERATIVO DEL SISTEMA (Clic para desplegar)"):
-    st.markdown("### Bienvenido al Sistema de Simulación Climática para Rutas Críticas (CPM)")
+with st.expander("📘 VER MANUAL OPERATIVO DEL SISTEMA"):
     st.markdown("""
     <div class="manual-section">
-        <h4>Paso 1: Configuración de Entorno</h4>
-        <ul><li>Defina el horario, días laborables y observe el cálculo de feriados.</li></ul>
+        <h4>1. Configuración de Entorno</h4>
+        <ul><li>Defina el horario, días laborables y observe el cálculo de feriados en el panel lateral.</li></ul>
     </div>
     <div class="manual-section">
-        <h4>Paso 2: Geolocalización (Caché Optimizado)</h4>
+        <h4>2. Geolocalización (Caché Optimizado)</h4>
         <ul><li>Haga clic en el mapa. El sistema memoriza zonas para cálculos inmediatos.</li></ul>
     </div>
     <div class="manual-section">
-        <h4>Paso 3: Carga y Simulación Avanzada</h4>
+        <h4>3. Carga y Simulación Avanzada</h4>
         <ul><li>Suba su XML. El motor <i>Expected Value Buffer</i> recalculará la red y mutará la ruta crítica automáticamente.</li></ul>
     </div>
     """, unsafe_allow_html=True)
@@ -106,11 +257,38 @@ with st.expander("📘 MANUAL OPERATIVO DEL SISTEMA (Clic para desplegar)"):
 # 3. BASE DE DATOS GEOGRÁFICA
 # ==============================================================================
 COORDENADAS_RD = {
-    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), 
-    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312),
-    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292),
-    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970),
-    # ... (Se mantienen tus coordenadas originales en el sistema, reduje el visual para el ejemplo)
+    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Azua - Padre Las Casas": (18.7339, -70.9328), "Azua - Peralta": (18.5786, -70.7714),
+    "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167), "Baoruco - Tamayo": (18.3942, -71.2025), "Baoruco - Los Ríos": (18.5194, -71.5878),
+    "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Barahona - Vicente Noble": (18.3814, -71.1764), "Barahona - Paraíso": (17.9917, -71.1653), "Barahona - Enriquillo": (17.9031, -71.2294),
+    "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083), "Dajabón - Loma de Cabrera": (19.4217, -71.6053), "Dajabón - Restauración": (19.3139, -71.6961),
+    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Distrito Nacional - Zona Colonial": (18.4722, -69.8844), "Distrito Nacional - Los Cacicazgos": (18.4452, -69.9575),
+    "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525), "Duarte - Castillo": (19.2133, -70.0272), "Duarte - Villa Riva": (19.1825, -69.9128), "Duarte - Arenoso": (19.1914, -69.8592),
+    "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "El Seibo - Miches": (18.9839, -69.0475), "El Seibo - Pedro Sánchez": (18.8631, -69.1125),
+    "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029), "Elías Piña - Hondo Valle": (18.7125, -71.7022), "Elías Piña - Bánica": (19.0803, -71.7036),
+    "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Espaillat - Gaspar Hernández": (19.6261, -70.2794), "Espaillat - Jamao al Norte": (19.6369, -70.4464),
+    "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565), "Hato Mayor - Sabana de la Mar": (19.0556, -69.3886), "Hato Mayor - El Valle": (18.9667, -69.3667),
+    "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Hermanas Mirabal - Tenares": (19.3744, -70.3508), "Hermanas Mirabal - Villa Tapia": (19.2978, -70.4350),
+    "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515), "Independencia - Duvergé": (18.3778, -71.5244), "Independencia - La Descubierta": (18.5700, -71.7289),
+    "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Altagracia - Punta Cana / Bávaro": (18.5601, -68.3725), "La Altagracia - San Rafael del Yuma": (18.4333, -68.6667), "La Altagracia - Bayahíbe": (18.3750, -68.8361),
+    "La Romana - La Romana (Cabecera)": (18.4273, -68.9728), "La Romana - Guaymate": (18.5889, -68.9469), "La Romana - Villa Hermosa": (18.4417, -69.0028),
+    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "La Vega - Constanza": (18.9089, -70.7444), "La Vega - Jarabacoa": (19.1217, -70.6411), "La Vega - Jima Abajo": (19.1361, -70.3756),
+    "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511), "María Trinidad Sánchez - Cabrera": (19.6417, -69.9022), "María Trinidad Sánchez - Río San Juan": (19.6381, -70.0767),
+    "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monseñor Nouel - Maimón": (18.9083, -70.2667), "Monseñor Nouel - Piedra Blanca": (18.8433, -70.3164),
+    "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450), "Monte Cristi - Villa Vásquez": (19.7431, -71.4489), "Monte Cristi - Guayubín": (19.6389, -71.3250), "Monte Cristi - Pepillo Salcedo (Manzanillo)": (19.7042, -71.7375),
+    "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Monte Plata - Bayaguana": (18.7572, -69.6353), "Monte Plata - Yamasá": (18.7733, -70.0258), "Monte Plata - Sabana Grande de Boyá": (18.9444, -69.7936),
+    "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431), "Pedernales - Oviedo": (17.8056, -71.4014),
+    "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Peravia - Nizao": (18.2464, -70.2111), "Peravia - Matanzas": (18.2567, -70.4214),
+    "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884), "Puerto Plata - Sosúa": (19.7667, -70.5167), "Puerto Plata - Cabarete": (19.7486, -70.4075), "Puerto Plata - Altamira": (19.6833, -70.8333), "Puerto Plata - Luperón": (19.8967, -70.9633),
+    "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "Samaná - Las Terrenas": (19.3217, -69.5331), "Samaná - Sánchez": (19.2278, -69.6139),
+    "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112), "San Cristóbal - Bajos de Haina": (18.4150, -70.0333), "San Cristóbal - Villa Altagracia": (18.6750, -70.1708), "San Cristóbal - Yaguate": (18.3333, -70.1833),
+    "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San José de Ocoa - Sabana Larga": (18.5750, -70.5167), "San José de Ocoa - Rancho Arriba": (18.7333, -70.4667),
+    "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299), "San Juan - Las Matas de Farfán": (18.8731, -71.5164), "San Juan - El Cercado": (18.7333, -71.5167),
+    "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "San Pedro de Macorís - Juan Dolio": (18.4239, -69.4161), "San Pedro de Macorís - Consuelo": (18.5333, -69.2833),
+    "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468), "Sánchez Ramírez - Fantino": (19.1167, -70.2167), "Sánchez Ramírez - Cevicos": (19.0333, -69.9833),
+    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago - Villa González": (19.5333, -70.7833), "Santiago - Licey al Medio": (19.4333, -70.6000), "Santiago - Tamboril": (19.4833, -70.6000), "Santiago - San José de las Matas": (19.3389, -70.9389),
+    "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457), "Santiago Rodríguez - Monción": (19.4167, -71.1667),
+    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Santo Domingo - Santo Domingo Norte": (18.5500, -69.9000), "Santo Domingo - Santo Domingo Oeste": (18.5000, -70.0000), "Santo Domingo - Boca Chica": (18.4500, -69.6000), "Santo Domingo - Los Alcarrizos": (18.5167, -70.0333),
+    "Valverde - Mao (Cabecera)": (19.5517, -71.0779), "Valverde - Esperanza": (19.5833, -71.0000), "Valverde - Laguna Salada": (19.6500, -71.0833)
 }
 
 def calcular_pascua(year):
@@ -142,7 +320,6 @@ def es_habil(fecha, dias_ok_idx, feriados):
     if fecha in feriados: return False
     return True
 
-# 🚀 MEJORA 3: CACHÉ GEOESPACIAL AVANZADO (TTL de 7 días y redondeo a 2 decimales para radio de ~1km)
 @st.cache_data(ttl=timedelta(days=7), show_spinner=False)
 def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
     lat_r = round(lat, 2)
@@ -515,8 +692,8 @@ with st.spinner("Accediendo al caché geoespacial o descargando micro-clima...")
                            color_discrete_sequence=['#AF1E2D'],
                            hover_data={'prob_lluvia': ':.1%'},
                            labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-        fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgb(8,48,107)', marker_line_width=1.5, opacity=0.8)
-        fig_clima.update_layout(plot_bgcolor='white', yaxis=dict(showgrid=True, gridcolor='#E0E0E0'), xaxis_title=None, height=400)
+        fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9, marker_corner_radius=4)
+        fig_clima.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
         st.plotly_chart(fig_clima, use_container_width=True)
 
 st.markdown("---")
@@ -524,7 +701,7 @@ st.subheader(f"📡 Radar Satelital en Tiempo Real ({st.session_state['ubicacion
 windy_html = f"""
 <iframe width="100%" height="450" 
     src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=9&overlay=rain&product=ecmwf&level=surface&lat={st.session_state['lat_actual']}&lon={st.session_state['lon_actual']}" 
-    frameborder="0" style="border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+    frameborder="0" style="border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
 </iframe>
 """
 components.html(windy_html, height=450)
@@ -588,18 +765,31 @@ if uploaded:
                 retraso_total_proyecto = (fin_nuevo_max - fin_base_max).days if pd.notna(fin_nuevo_max) and pd.notna(fin_base_max) else 0
             except: retraso_total_proyecto = 0
             
-            # 🚀 MEJORA 2: UI/UX con Métricas Nativas y Deltas
+            # --- NUEVO PANEL DE KPIs ENTERPRISE ---
             st.markdown("### 📊 Panel de Resultados Gerenciales")
-            kpi1, kpi2, kpi3 = st.columns(3)
-            kpi1.metric("Tareas Afectadas por Clima", count_impact, f"De {len(tareas_evaluables)} totales", delta_color="off")
-            kpi2.metric("Retraso Calendario de Proyecto", f"+{max(0, retraso_total_proyecto)} Días", "Impacto Climático Acumulado", delta_color="inverse")
-            if pd.notna(fin_nuevo_max):
-                kpi3.metric("Fecha Final Ajustada", fin_nuevo_max.strftime("%d %b %Y"), f"Línea Base: {fin_base_max.strftime('%d %b %Y')}", delta_color="off")
-            st.markdown("---")
+            st.markdown(f"""
+            <div class="kpi-container">
+                <div class="kpi-box">
+                    <div class="kpi-title">Actividades Afectadas</div>
+                    <div class="kpi-value">{count_impact} <span>/ {len(tareas_evaluables)} totales</span></div>
+                    <div class="kpi-subtitle">Tareas de campo que sufrieron inyección de EVB.</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-title">Retraso del Proyecto</div>
+                    <div class="kpi-value {'danger' if retraso_total_proyecto > 0 else ''}">+{max(0, retraso_total_proyecto)} <span>Días Calendario</span></div>
+                    <div class="kpi-subtitle">Desplazamiento final tras recalcular Ruta Crítica.</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-title">Fecha Final Proyectada</div>
+                    <div class="kpi-value" style="font-size: 2rem;">{fin_nuevo_max.strftime("%d %b %Y") if pd.notna(fin_nuevo_max) else 'N/A'}</div>
+                    <div class="kpi-subtitle">Línea Base original: {fin_base_max.strftime('%d %b %Y') if pd.notna(fin_base_max) else 'N/A'}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             act_reales = final[(final['IsSummary'] == False) & (final['IsMilestone'] == False)]
             
-            # 🚀 MEJORA 1: Nueva Pestaña del Diagrama de Gantt
+            # PESTAÑAS
             tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva S (Interactiva)", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
             
             with tab1:
@@ -614,7 +804,7 @@ if uploaded:
                                             color="Días Impacto", color_continuous_scale=px.colors.sequential.Reds,
                                             hover_data=["Duración Nueva", "Holgura (Días)", "Ruta Crítica"])
                     fig_gantt.update_yaxes(autorange="reversed")
-                    fig_gantt.update_layout(height=600, plot_bgcolor='white')
+                    fig_gantt.update_layout(height=600, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_gantt, use_container_width=True)
                 else:
                     st.info("No hay datos para generar el Gantt.")
@@ -631,12 +821,12 @@ if uploaded:
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
                 fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
-                                color_discrete_map={'Base': '#808080', 'Sugerido': '#AF1E2D'},
+                                color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'},
                                 markers=True, line_shape='spline')
-                fig_s.update_layout(plot_bgcolor='white', hovermode='x unified', xaxis_title="Fechas de Finalización", yaxis_title="Tareas Completadas",
+                fig_s.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', hovermode='x unified', xaxis_title="Fechas de Finalización", yaxis_title="Tareas Completadas",
                                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                fig_s.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#E0E0E0')
-                fig_s.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#E0E0E0')
+                fig_s.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#E2E8F0')
+                fig_s.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#E2E8F0')
                 st.plotly_chart(fig_s, use_container_width=True)
                 
             with tab3:
@@ -646,9 +836,10 @@ if uploaded:
                     counts_mes = df_hist['Mes'].value_counts().reset_index()
                     counts_mes.columns = ['Mes', 'Qty']
                     
-                    fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#3366CC'])
-                    fig_riesgo.update_traces(textposition='outside')
-                    fig_riesgo.update_layout(plot_bgcolor='white', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
+                    fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#3B82F6'])
+                    fig_riesgo.update_traces(textposition='outside', marker_corner_radius=4)
+                    fig_riesgo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
+                    fig_riesgo.update_yaxes(showgrid=True, gridcolor='#E2E8F0')
                     st.plotly_chart(fig_riesgo, use_container_width=True)
                 else: st.info("Ninguna actividad superó los umbrales de lluvia seleccionados.")
                 
@@ -678,17 +869,17 @@ if uploaded:
                 wb = w.book
                 ws = w.sheets['Sugerencias']
                 
-                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#3366CC', 'font_color': 'white', 'font_size': 14})
+                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
                 fmt_norm = wb.add_format({'border':1})
                 fmt_date = wb.add_format({'num_format': 'mm-dd-yyyy', 'border':1})
-                fmt_med = wb.add_format({'bg_color': '#CFE2F3', 'border':1, 'font_color': 'black'}) 
-                fmt_med_date = wb.add_format({'bg_color': '#CFE2F3', 'num_format': 'mm-dd-yyyy', 'border':1, 'font_color': 'black'})
-                fmt_high = wb.add_format({'bg_color': '#002060', 'border':1, 'font_color': 'white'}) 
-                fmt_high_date = wb.add_format({'bg_color': '#002060', 'num_format': 'mm-dd-yyyy', 'border':1, 'font_color': 'white'})
-                fmt_logic = wb.add_format({'bg_color': '#FFFF99', 'border':1}) 
-                fmt_logic_date = wb.add_format({'bg_color': '#FFFF99', 'num_format': 'mm-dd-yyyy', 'border':1})
-                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#EFEFEF', 'border':1})
-                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#EFEFEF', 'num_format': 'mm-dd-yyyy', 'border':1})
+                fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
+                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': 'mm-dd-yyyy', 'border':1, 'font_color': 'black'})
+                fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
+                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': 'mm-dd-yyyy', 'border':1, 'font_color': 'white'})
+                fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
+                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': 'mm-dd-yyyy', 'border':1})
+                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
+                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': 'mm-dd-yyyy', 'border':1})
 
                 last_col_idx = len(final.columns) - 4 - 1 
                 ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
