@@ -448,15 +448,47 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar)
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
 
     for i in df_res[df_res['IsSummary'] == True].index:
-        wbs_prefix = str(df_res.at[i, 'WBS']) + '.'
+        wbs_val = str(df_res.at[i, 'WBS'])
+        wbs_prefix = wbs_val + '.'
+        
+        # Obtener tareas hijas
         children = df_res[(df_res['WBS'].astype(str).str.startswith(wbs_prefix)) & (df_res['IsSummary'] == False)]
+        
+        # EXCEPCIÓN: Si es la Tarea Resumen Raíz del Proyecto (ID 0), tomar todas las tareas
+        if children.empty and (df_res.at[i, 'ID'] == 0 or wbs_val == '0' or wbs_val == 'None'):
+            children = df_res[df_res['IsSummary'] == False]
+            
         if not children.empty:
             min_start = children['Inicio Nuevo'].dropna().min()
             max_finish = children['Fin Nuevo'].dropna().max()
+            
             if pd.notna(min_start): df_res.at[i, 'Inicio Nuevo'] = min_start
             if pd.notna(max_finish): df_res.at[i, 'Fin Nuevo'] = max_finish
-            df_res.at[i, 'Días Impacto'] = 0; df_res.at[i, 'Nivel Riesgo'] = "N/A"
-            df_res.at[i, 'Prob. Lluvia'] = "-"; df_res.at[i, 'mm Lluvia Max'] = "-"
+            
+            # --- NUEVA LÓGICA: RECALCULAR DURACIÓN DEL RESUMEN EXPANDIDO ---
+            if pd.notna(min_start) and pd.notna(max_finish) and max_finish >= min_start:
+                c_dias = 0
+                cursor = min_start
+                # Contar días hábiles reales entre el nuevo inicio y el nuevo fin
+                while cursor <= max_finish:
+                    if es_habil(cursor, dias_idx, feriados):
+                        c_dias += 1
+                    cursor += timedelta(days=1)
+                
+                df_res.at[i, 'Duración Nueva'] = c_dias
+                
+                # El impacto de un resumen es la diferencia entre su nueva duración y la base
+                impacto_resumen = c_dias - df_res.at[i, 'Duración Base']
+                df_res.at[i, 'Días Impacto'] = impacto_resumen
+                
+                # Pintar el riesgo para el Excel
+                df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Bajo"
+            else:
+                df_res.at[i, 'Días Impacto'] = 0
+                df_res.at[i, 'Nivel Riesgo'] = "N/A"
+                
+            df_res.at[i, 'Prob. Lluvia'] = "-"
+            df_res.at[i, 'mm Lluvia Max'] = "-"
             df_res.at[i, 'Holgura (Días)'] = "-"
             df_res.at[i, 'Ruta Crítica'] = "-"
             
