@@ -692,7 +692,10 @@ with st.spinner("Accediendo al caché geoespacial o descargando micro-clima...")
                            color_discrete_sequence=['#AF1E2D'],
                            hover_data={'prob_lluvia': ':.1%'},
                            labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-        fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9, marker_corner_radius=4)
+        
+        # CORRECCIÓN DE ERROR EN NUBE: Se removió marker_corner_radius para compatibilidad
+        fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
+        
         fig_clima.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
         st.plotly_chart(fig_clima, use_container_width=True)
 
@@ -837,7 +840,10 @@ if uploaded:
                     counts_mes.columns = ['Mes', 'Qty']
                     
                     fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#3B82F6'])
-                    fig_riesgo.update_traces(textposition='outside', marker_corner_radius=4)
+                    
+                    # CORRECCIÓN DE ERROR EN NUBE: Se removió marker_corner_radius para compatibilidad
+                    fig_riesgo.update_traces(textposition='outside')
+                    
                     fig_riesgo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
                     fig_riesgo.update_yaxes(showgrid=True, gridcolor='#E2E8F0')
                     st.plotly_chart(fig_riesgo, use_container_width=True)
