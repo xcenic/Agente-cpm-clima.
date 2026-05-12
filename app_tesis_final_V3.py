@@ -625,6 +625,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
 
     df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
+    df_res['Tr (Secado/Horas)'] = df_res['Tr (Secado/Horas)'].astype(object) # <-- LÍNEA NUEVA
 
     for i in df_res[df_res['IsSummary'] == True].index:
         wbs_val = str(df_res.at[i, 'WBS'])
