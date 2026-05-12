@@ -39,16 +39,15 @@ st.markdown("""
             font-family: 'Inter', sans-serif !important;
         }
         
-        /* Fondo de la aplicación (Gris muy claro, estilo Dashboard) */
+        /* Fondo de la aplicación */
         .stApp {
             background-color: #F4F7F9;
         }
 
-        /* Ocultar elementos de menú predeterminados de Streamlit para un look más limpio */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
 
-        /* Banner Principal Moderno (Gradiente oscuro con acento rojo) */
+        /* Banner Principal Moderno */
         .modern-banner {
             background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
             color: #FFFFFF;
@@ -75,13 +74,11 @@ st.markdown("""
             font-weight: 400;
         }
 
-        /* Estilo del Sidebar */
         [data-testid="stSidebar"] {
             background-color: #FFFFFF;
             border-right: 1px solid #E2E8F0;
         }
         
-        /* Botones primarios redondeados con Hover Effects */
         .stButton>button {
             background-color: #AF1E2D;
             color: white !important;
@@ -98,7 +95,6 @@ st.markdown("""
             background-color: #901924;
         }
 
-        /* Contenedores blancos (Tarjetas de contenido) */
         .css-1r6slb0, .css-18e3th9, .css-1d391kg {
             background-color: #FFFFFF;
             border-radius: 16px;
@@ -107,12 +103,11 @@ st.markdown("""
             border: 1px solid #F1F5F9;
         }
 
-        /* Secciones del Manual (Neumorfismo plano) */
         .manual-section {
             background-color: #F8FAFC;
             padding: 20px;
             border-radius: 12px;
-            border-left: 4px solid #3B82F6; /* Acento azul para información */
+            border-left: 4px solid #3B82F6; 
             margin-bottom: 16px;
             border-top: 1px solid #E2E8F0;
             border-right: 1px solid #E2E8F0;
@@ -126,7 +121,6 @@ st.markdown("""
         }
         .manual-section ul { color: #475569; }
 
-        /* --- NUEVO SISTEMA DE KPIs ESTILO ENTERPRISE --- */
         .kpi-container {
             display: flex;
             justify-content: space-between;
@@ -148,7 +142,6 @@ st.markdown("""
             transform: translateY(-4px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-        /* Línea de acento superior en los KPIs */
         .kpi-box::before {
             content: "";
             position: absolute;
@@ -178,7 +171,6 @@ st.markdown("""
             margin-top: 8px;
         }
 
-        /* Pestañas (Tabs) de Streamlit personalizadas */
         [data-baseweb="tab-list"] {
             gap: 8px;
             background-color: #FFFFFF;
@@ -561,7 +553,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             'ID': tid, 'WBS': row['WBS'], 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
             'Duración Base': redondear_duracion(base_dur_float), 'Inicio Base': start_dt, 'Fin Base': finish_dt,
             'Duración Nueva': redondear_duracion(new_dur_float), 'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish,
-            'Tr (Secado/Horas)': tr_horas,  # Columna Tr agregada aquí
+            'Tr (Secado/Horas)': tr_horas,  # Columna Tr
             'Pred. Orig': row['OrigPreds'], 'Pred. Nueva': new_preds,
             'Prob. Lluvia': f"{stats_prob:.0%}" if stats_prob > 0 else "-", 'mm Lluvia Max': round(stats_mm, 1) if stats_mm > 0 else "-",
             'Lluvia Total Acum (mm)': round(rain_total, 1), 'Fecha Última Lluvia': last_rain_date if last_rain_date else "-",
@@ -619,13 +611,13 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         res_temp[tid]['Holgura (Días)'] = tf_days
         res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
         
-        # Eliminada Nivel de Riesgo subjetivo, mantenemos Nivel de impacto si se quiere
         impact = res_temp[tid]['Días Impacto']
         res_temp[tid]['Nivel Riesgo'] = "Crítico (Mutada)" if (tf_days <= 0 and impact > 0) else ("Alto" if impact > 2 else "Normal")
 
     df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
+    # SOLUCIÓN DEL ERROR TYPE-ERROR PERMITIENDO FORMATO ABIERTO
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
-    df_res['Tr (Secado/Horas)'] = df_res['Tr (Secado/Horas)'].astype(object) # <-- LÍNEA NUEVA
+    df_res['Tr (Secado/Horas)'] = df_res['Tr (Secado/Horas)'].astype(object)
 
     for i in df_res[df_res['IsSummary'] == True].index:
         wbs_val = str(df_res.at[i, 'WBS'])
@@ -664,8 +656,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             df_res.at[i, 'Ruta Crítica'] = "-"
             df_res.at[i, 'Tr (Secado/Horas)'] = "-"
             
-    # REQUISITO 2: ORDENAR POR ID DE MANERA ESTRICTA ANTES DE DEVOLVER
-    return df_res.sort_values('ID')
+    # ORDEN ABSOLUTO REQUISITO 1: Aseguramos que la columna ID es numérica y reordenamos
+    df_res['ID'] = pd.to_numeric(df_res['ID'], errors='coerce')
+    return df_res.sort_values('ID').reset_index(drop=True)
 
 # ==============================================================================
 # 7. INTERFAZ PRINCIPAL (SIDEBAR ACTUALIZADO)
@@ -774,7 +767,6 @@ if uploaded:
         st.markdown("### 🚀 Simulación de Ruta Crítica (CHRONOFLUX V8)")
         
         c_p, c_m, c_u = st.columns(3)
-        # REQUISITO 4: Nomenclatura ajustada en la UI
         prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, 65, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
         mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, 5.0, 0.5, help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
         umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, 3.0, 0.5, help="Umbral Operativo (Ut). Si la fracción de horas operables es menor a este umbral, se pierde la jornada completa.")
@@ -895,12 +887,11 @@ if uploaded:
                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
                        update_mode=GridUpdateMode.NO_UPDATE)
 
-            # --- EXPORTAR EXCEL ---
+            # --- EXPORTAR EXCEL (REQUISITO 1 y 2 CUBIERTOS) ---
             b_out = io.BytesIO()
             p_name = st.session_state.get('project_name', 'Proyecto')
             safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
             
-            # REQUISITO 3: Ajustamos columnas a exportar (agregamos Tr y quitamos Nivel Riesgo subjetivo)
             columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
                                  'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
                                  'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
@@ -911,17 +902,19 @@ if uploaded:
                 wb = w.book
                 ws = w.sheets['Sugerencias']
                 
+                # REQUISITO 2: Configuración del formato dd/mm/yyyy para Copy/Paste perfecto a MS Project.
+                formato_project = 'dd/mm/yyyy'
                 fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
                 fmt_norm = wb.add_format({'border':1})
-                fmt_date = wb.add_format({'num_format': 'mm-dd-yyyy', 'border':1})
+                fmt_date = wb.add_format({'num_format': formato_project, 'border':1})
                 fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
-                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': 'mm-dd-yyyy', 'border':1, 'font_color': 'black'})
+                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': formato_project, 'border':1, 'font_color': 'black'})
                 fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
-                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': 'mm-dd-yyyy', 'border':1, 'font_color': 'white'})
+                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': formato_project, 'border':1, 'font_color': 'white'})
                 fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
-                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': 'mm-dd-yyyy', 'border':1})
+                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': formato_project, 'border':1})
                 fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
-                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': 'mm-dd-yyyy', 'border':1})
+                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': formato_project, 'border':1})
 
                 last_col_idx = len(columnas_exportar) - 1 
                 ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
@@ -953,8 +946,14 @@ if uploaded:
                     for c, col_name in enumerate(columnas_exportar):
                         val = row.get(col_name, "")
                         if pd.isna(val): val = ""
+                        
                         cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
-                        ws.write(r+2, c, val, cell_fmt)
+                        
+                        # Escribir fechas como "serial number" de Excel para asegurar que MS Project las lea de inmediato
+                        if (c in date_cols or c == rain_date_col) and isinstance(val, (datetime, date, pd.Timestamp)):
+                            ws.write_datetime(r+2, c, val, cell_fmt)
+                        else:
+                            ws.write(r+2, c, val, cell_fmt)
                 
                 ws.set_column('C:C', 40); ws.set_column('R:R', 35)
 
@@ -971,7 +970,7 @@ if uploaded:
                     for i, r in df_s_excel.iterrows():
                         date_val = r['Fecha']
                         if isinstance(date_val, pd.Timestamp): date_val = date_val.date()
-                        ws_data.write(i+1, 0, date_val.strftime('%Y-%m-%d'))
+                        ws_data.write(i+1, 0, date_val.strftime('%d/%m/%Y'))
                         ws_data.write(i+1, 1, r['Base'])
                         ws_data.write(i+1, 2, r['Sugerido'])
                 
