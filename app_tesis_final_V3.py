@@ -457,7 +457,13 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         elif any(palabra in nombre for palabra in ['corte', 'relleno', 'subrasante', 'tierra', 'excavacion', 'excavación']):
             return 3.0
         return 1.5 
-    
+        
+    def obtener_tr_secado(ic):
+        if ic >= 3.0: return 48.0
+        if ic >= 2.0: return 24.0
+        if ic >= 1.0: return 4.0
+        return 0.0
+
     for tid in orden:
         row = G.nodes[tid]['data']
         new_preds = G.nodes[tid]['new_preds']
@@ -489,8 +495,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         retraso_teorico_dias = 0.0
         last_rain_date = None
 
-        # IDENTIFICAMOS EL IMPACTO CONSTRUCTIVO REAL SEGÚN EL TEXTO DE LA TESIS
+        # IDENTIFICAMOS EL IMPACTO CONSTRUCTIVO REAL
         impacto_constructivo_ic = calcular_ic(row['Name'])
+        tr_horas = obtener_tr_secado(impacto_constructivo_ic)
         
         if not row['IsSummary'] and not row['IsMilestone'] and new_start:
             work_needed = math.ceil(base_dur_float) if base_dur_float > 0 else 1
@@ -506,25 +513,27 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         stats_prob = max(stats_prob, h['probabilidad'])
                         if h['probabilidad'] >= prob_min and h['mm_promedio'] >= mm_min:
                             stats_mm = max(stats_mm, h['mm_promedio'])
-                            # MATEMÁTICA REAL DE LA TESIS: EVB = P(R) * Ic
+                            # EVB PURO
                             retraso_teorico_dias += (h['probabilidad'] * impacto_constructivo_ic)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
                     work_done += 1 
                 cursor += timedelta(days=1)
                 
-            parte_entera = math.floor(retraso_teorico_dias)
-            parte_decimal = retraso_teorico_dias - parte_entera
-            horas_fraccion = parte_decimal * jornada_horas
+            # --- INCORPORACIÓN FUNCIÓN Q ---
             nota_cuantizacion = ""
-            
-            if 0 < horas_fraccion < umbral_horas:
-                if parte_decimal <= 0.5:
-                    retraso_cuantizado = parte_entera + 0.5
-                else:
-                    retraso_cuantizado = parte_entera + 1.0
-                nota_cuantizacion = f" (Cuantizado: de {retraso_teorico_dias:.2f} a {retraso_cuantizado}d)"
+            if retraso_teorico_dias > 0:
+                # 1. Redondeo a media jornada
+                retraso_cuantizado = math.ceil(retraso_teorico_dias * 2) / 2
+                
+                # 2. Verificamos horas restantes contra el Ut
+                horas_restantes = 8 - ((retraso_cuantizado % 1) * 8)
+                if 0 < horas_restantes < umbral_horas:
+                    retraso_cuantizado = math.ceil(retraso_cuantizado)
+                
+                if retraso_cuantizado != retraso_teorico_dias:
+                    nota_cuantizacion = f" (Q={retraso_cuantizado}d)"
             else:
-                retraso_cuantizado = round(retraso_teorico_dias, 2)
+                retraso_cuantizado = 0.0
             
             if note == "OK" and retraso_cuantizado > 0:
                 note = f"Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
@@ -552,6 +561,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             'ID': tid, 'WBS': row['WBS'], 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
             'Duración Base': redondear_duracion(base_dur_float), 'Inicio Base': start_dt, 'Fin Base': finish_dt,
             'Duración Nueva': redondear_duracion(new_dur_float), 'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish,
+            'Tr (Secado/Horas)': tr_horas,  # Columna Tr agregada aquí
             'Pred. Orig': row['OrigPreds'], 'Pred. Nueva': new_preds,
             'Prob. Lluvia': f"{stats_prob:.0%}" if stats_prob > 0 else "-", 'mm Lluvia Max': round(stats_mm, 1) if stats_mm > 0 else "-",
             'Lluvia Total Acum (mm)': round(rain_total, 1), 'Fecha Última Lluvia': last_rain_date if last_rain_date else "-",
@@ -608,7 +618,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         
         res_temp[tid]['Holgura (Días)'] = tf_days
         res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
-        res_temp[tid]['Nivel Riesgo'] = "Crítico (Ruta Mutada)" if (tf_days <= 0 and res_temp[tid]['IsRain']) else ("Alto" if res_temp[tid]['Días Impacto'] > 5 else ("Medio" if res_temp[tid]['Días Impacto'] > 0 else "Bajo"))
+        
+        # Eliminada Nivel de Riesgo subjetivo, mantenemos Nivel de impacto si se quiere
+        impact = res_temp[tid]['Días Impacto']
+        res_temp[tid]['Nivel Riesgo'] = "Crítico (Mutada)" if (tf_days <= 0 and impact > 0) else ("Alto" if impact > 2 else "Normal")
 
     df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
@@ -639,7 +652,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                 df_res.at[i, 'Duración Nueva'] = c_dias
                 impacto_resumen = c_dias - df_res.at[i, 'Duración Base']
                 df_res.at[i, 'Días Impacto'] = impacto_resumen
-                df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Bajo"
+                df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Normal"
             else:
                 df_res.at[i, 'Días Impacto'] = 0
                 df_res.at[i, 'Nivel Riesgo'] = "N/A"
@@ -648,8 +661,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             df_res.at[i, 'mm Lluvia Max'] = "-"
             df_res.at[i, 'Holgura (Días)'] = "-"
             df_res.at[i, 'Ruta Crítica'] = "-"
+            df_res.at[i, 'Tr (Secado/Horas)'] = "-"
             
-    return df_res
+    # REQUISITO 2: ORDENAR POR ID DE MANERA ESTRICTA ANTES DE DEVOLVER
+    return df_res.sort_values('ID')
 
 # ==============================================================================
 # 7. INTERFAZ PRINCIPAL (SIDEBAR ACTUALIZADO)
@@ -758,9 +773,10 @@ if uploaded:
         st.markdown("### 🚀 Simulación de Ruta Crítica (CHRONOFLUX V8)")
         
         c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad Lluvia (%)", 0, 100, 30, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
-        mm = c_m.slider("Intensidad (mm/día)", 0.0, 50.0, 2.0, 0.5, help="Nivel de lluvia necesario para paralizar la actividad.")
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas)", 1.0, 4.0, 2.0, 0.5, help="Si la fracción de horas operables es menor a este umbral, se cuantizará perdiendo la jornada.")
+        # REQUISITO 4: Nomenclatura ajustada en la UI
+        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, 65, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
+        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, 5.0, 0.5, help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
+        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, 3.0, 0.5, help="Umbral Operativo (Ut). Si la fracción de horas operables es menor a este umbral, se pierde la jornada completa.")
         
         if st.button("Ejecutar Cálculo y Optimizar Planificación", type="primary", use_container_width=True):
             st.toast('Iniciando simulación topológica...', icon='🚀')
@@ -783,7 +799,7 @@ if uploaded:
                 retraso_total_proyecto = (fin_nuevo_max - fin_base_max).days if pd.notna(fin_nuevo_max) and pd.notna(fin_base_max) else 0
             except: retraso_total_proyecto = 0
             
-            # --- NUEVO PANEL DE KPIs ENTERPRISE ---
+            # --- PANEL DE KPIs ---
             st.markdown("### 📊 Panel de Resultados Gerenciales")
             st.markdown(f"""
             <div class="kpi-container">
@@ -864,7 +880,7 @@ if uploaded:
                 
             with tab4:
                 df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
-                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo', 'Estado']])
+                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']])
                 gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
                 gb.configure_default_column(resizable=True, filterable=True, sortable=True)
                 gb.configure_column("Actividad", width=400)
@@ -872,7 +888,7 @@ if uploaded:
                 gridOptions = gb.build()
                 
                 st.markdown("*(Puedes dar clic en los encabezados para filtrar o mover las columnas)*")
-                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Holgura (Días)', 'Ruta Crítica', 'Nivel Riesgo', 'Estado']], 
+                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']], 
                        gridOptions=gridOptions, 
                        theme='alpine',
                        columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
@@ -883,8 +899,14 @@ if uploaded:
             p_name = st.session_state.get('project_name', 'Proyecto')
             safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
             
+            # REQUISITO 3: Ajustamos columnas a exportar (agregamos Tr y quitamos Nivel Riesgo subjetivo)
+            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
+                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
+                                 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
+                                 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
+            
             with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
-                final.drop(columns=['IsSummary', 'IsMilestone', 'IsRain', 'IsLogic']).to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
+                final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
                 wb = w.book
                 ws = w.sheets['Sugerencias']
                 
@@ -900,14 +922,14 @@ if uploaded:
                 fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
                 fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': 'mm-dd-yyyy', 'border':1})
 
-                last_col_idx = len(final.columns) - 4 - 1 
+                last_col_idx = len(columnas_exportar) - 1 
                 ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
                 
                 date_cols = [4, 5, 7, 8]
-                rain_date_col = 14
+                rain_date_col = 15
                 
                 for r, row in final.iterrows():
-                    risk = row['Nivel Riesgo']
+                    impacto = row['Días Impacto']
                     is_logic = row['IsLogic']
                     is_summary = row['IsSummary']
                     
@@ -917,26 +939,23 @@ if uploaded:
                     if is_summary:
                         row_fmt = fmt_summary
                         row_date_fmt = fmt_summary_date
-                    elif risk == "Alto" or risk == "Crítico (Ruta Mutada)":
+                    elif impacto > 2:
                         row_fmt = fmt_high
                         row_date_fmt = fmt_high_date
-                    elif risk == "Medio":
+                    elif impacto > 0:
                         row_fmt = fmt_med
                         row_date_fmt = fmt_med_date
                     elif is_logic: 
                         row_fmt = fmt_logic
                         row_date_fmt = fmt_logic_date
                         
-                    col_offset = 0
-                    for c, (col_name, val) in enumerate(row.items()):
-                        if col_name in ['IsSummary', 'IsMilestone', 'IsRain', 'IsLogic']:
-                            col_offset += 1; continue
-                        excel_c = c - col_offset
+                    for c, col_name in enumerate(columnas_exportar):
+                        val = row.get(col_name, "")
                         if pd.isna(val): val = ""
-                        cell_fmt = row_date_fmt if (excel_c in date_cols or excel_c == rain_date_col) else row_fmt
-                        ws.write(r+2, excel_c, val, cell_fmt)
+                        cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
+                        ws.write(r+2, c, val, cell_fmt)
                 
-                ws.set_column('C:C', 40); ws.set_column('O:O', 25)
+                ws.set_column('C:C', 40); ws.set_column('R:R', 35)
 
                 ws_data = wb.add_worksheet('Datos_Graficos')
                 ws_data.write('A1', 'Fecha')
