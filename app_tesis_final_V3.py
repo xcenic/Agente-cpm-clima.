@@ -47,33 +47,6 @@ st.markdown("""
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
 
-        /* Banner Principal Moderno */
-        .modern-banner {
-            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
-            color: #FFFFFF;
-            padding: 24px;
-            border-radius: 16px;
-            text-align: center;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-            border-bottom: 4px solid #AF1E2D;
-            position: relative;
-            overflow: hidden;
-        }
-        .modern-banner h1 {
-            font-size: 2rem;
-            font-weight: 800;
-            margin: 0;
-            letter-spacing: -0.02em;
-        }
-        .modern-banner p {
-            font-size: 1.1rem;
-            color: #94A3B8;
-            margin-top: 8px;
-            margin-bottom: 0;
-            font-weight: 400;
-        }
-
         [data-testid="stSidebar"] {
             background-color: #FFFFFF;
             border-right: 1px solid #E2E8F0;
@@ -212,19 +185,113 @@ if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_act
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
 # ==============================================================================
-# ENCABEZADO MINIMALISTA (Logo pequeño + Banner CSS)
+# ENCABEZADO: BANNER DE RED TOPOLÓGICA DINÁMICA (PARTICLES.JS)
 # ==============================================================================
 col_izq, col_centro, col_der = st.columns([2, 1, 2])
 with col_centro:
     try: st.image("logo_chronoflux.png", use_container_width=True)
     except: st.empty()
 
-st.markdown("""
-    <div class="modern-banner">
-        <h1>CHRONOFLUX AI</h1>
-        <p>Motor de Simulación Climática y Optimización Topológica CPM</p>
+banner_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;800&display=swap');
+        body { margin: 0; padding: 0; background-color: transparent; }
+        #particles-container {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            border-bottom: 4px solid #AF1E2D;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        #particles-js { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        .banner-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 2;
+            pointer-events: none; /* Permite que el mouse interactúe con los nodos detrás del texto */
+            width: 90%;
+        }
+        .banner-text h1 {
+            font-family: 'Inter', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #FFFFFF;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+        .banner-text p {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.1rem;
+            color: #94A3B8;
+            margin-top: 8px;
+            margin-bottom: 0;
+            font-weight: 400;
+        }
+    </style>
+</head>
+<body>
+    <div id="particles-container">
+        <div id="particles-js"></div>
+        <div class="banner-text">
+            <h1>CHRONOFLUX AI</h1>
+            <p>Motor de Simulación Climática y Optimización Topológica CPM</p>
+        </div>
     </div>
-""", unsafe_allow_html=True)
+    
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+        particlesJS("particles-js", {
+            "particles": {
+                "number": { "value": 80, "density": { "enable": true, "value_area": 800 } },
+                "color": { "value": "#AF1E2D" }, /* Nodos color rojo Chronoflux */
+                "shape": { "type": "circle" },
+                "opacity": { "value": 0.6, "random": false },
+                "size": { "value": 3.5, "random": true },
+                "line_linked": {
+                    "enable": true,
+                    "distance": 150,
+                    "color": "#94A3B8", /* Aristas color gris acero */
+                    "opacity": 0.4,
+                    "width": 1.5
+                },
+                "move": {
+                    "enable": true,
+                    "speed": 2.5,
+                    "direction": "none",
+                    "random": false,
+                    "straight": false,
+                    "out_mode": "out",
+                    "bounce": false
+                }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": {
+                    "onhover": { "enable": true, "mode": "grab" }, /* Los nodos se conectan al mouse */
+                    "onclick": { "enable": true, "mode": "push" }, /* Click genera más nodos */
+                    "resize": true
+                },
+                "modes": {
+                    "grab": { "distance": 180, "line_linked": { "opacity": 1 } },
+                    "push": { "particles_nb": 3 }
+                }
+            },
+            "retina_detect": true
+        });
+    </script>
+</body>
+</html>
+"""
+components.html(banner_html, height=240)
 
 # ==============================================================================
 # 2. MANUAL DETALLADO DE USUARIO
