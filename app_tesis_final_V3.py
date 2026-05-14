@@ -342,7 +342,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     # --- MATRIZ GEOTÉCNICA DE IMPACTO CONSTRUCTIVO (Ic) ---
     def calcular_ic(nombre_tarea):
         nombre = str(nombre_tarea).lower()
-        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'losa', 'zapata', 'columna', 'viga', 'platea', 'fundacion', 'fundación', 'estructura']):
+        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'losa', 'zapata', 'columna', 'viga', 'platea', 'fundacion', 'fundación', 'estructura', 'paisajismo', 'limpieza', 'grama', 'terminacion', 'terminación']):
             return 1.0
         elif any(palabra in nombre for palabra in ['pintura', 'señalizacion', 'señalización']):
             return 1.5
@@ -386,6 +386,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         new_finish = finish_dt
         new_dur_float = base_dur_float
         
+        # INICIALIZACIÓN DE VARIABLES CRÍTICA
         stats_prob = 0.0
         prob_acumulada = 0.0
         dias_evaluados = 0
@@ -437,14 +438,35 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             elif note != "OK" and retraso_cuantizado > 0:
                 note += f" | Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
             
-            buffer_restante = math.ceil(retraso_cuantizado)
-            while buffer_restante > 0:
-                if es_habil(cursor, dias_idx, feriados): buffer_restante -= 1
-                cursor += timedelta(days=1)
-                
-            new_finish = cursor - timedelta(days=1)
-            new_dur_float = base_dur_float + retraso_cuantizado
+            # --- SOLUCIÓN DEL CALENDARIO: EMPUJE DESDE FIN BASE ---
+            shift_working_days = 0
+            if start_dt and new_start > start_dt:
+                c = start_dt
+                while c < new_start:
+                    if es_habil(c, dias_idx, feriados):
+                        shift_working_days += 1
+                    c += timedelta(days=1)
             
+            total_delay_working_days = shift_working_days + math.ceil(retraso_cuantizado)
+            
+            if finish_dt:
+                cursor_fin = finish_dt
+                days_added = 0
+                while days_added < total_delay_working_days:
+                    cursor_fin += timedelta(days=1)
+                    if es_habil(cursor_fin, dias_idx, feriados):
+                        days_added += 1
+                new_finish = cursor_fin
+                new_dur_float = base_dur_float + retraso_cuantizado
+            else:
+                buffer_restante = math.ceil(retraso_cuantizado)
+                while buffer_restante > 0:
+                    if es_habil(cursor, dias_idx, feriados): buffer_restante -= 1
+                    cursor += timedelta(days=1)
+                new_finish = cursor - timedelta(days=1)
+                new_dur_float = base_dur_float + retraso_cuantizado
+                
+            # CANDADO DE LÍNEA BASE
             is_pushed_by_pred = (new_start > start_dt) if start_dt else False
             if not is_pushed_by_pred and retraso_cuantizado == 0 and finish_dt:
                 new_finish = finish_dt
