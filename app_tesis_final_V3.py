@@ -519,7 +519,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     # --- MATRIZ GEOTÉCNICA DE IMPACTO CONSTRUCTIVO (Ic) ---
     def calcular_ic(nombre_tarea):
         nombre = str(nombre_tarea).lower()
-        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'drenaje', 'acera', 'conten', 'bordillo']):
+        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'drenaje', 'acera', 'conten', 'bordillo' 'paisajismo']):
             return 1.0
         elif any(palabra in nombre for palabra in ['pintura', 'señalizacion', 'señalización']):
             return 1.5
