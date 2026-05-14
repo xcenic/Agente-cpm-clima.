@@ -384,10 +384,11 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             new_start = start_dt + timedelta(days=max_shift_dias)
             while not es_habil(new_start, dias_idx, feriados): new_start += timedelta(days=1)
                 
-        new_finish = finish_dt
+       new_finish = finish_dt
         new_dur_float = base_dur_float
         
         # CORRECCIÓN 3: Variables para calcular probabilidad PROMEDIO en lugar del PICO MÁXIMO
+        stats_prob = 0.0  # <--- ESTA ES LA LÍNEA QUE FALTABA
         prob_acumulada = 0.0
         dias_evaluados = 0
         stats_mm = 0
