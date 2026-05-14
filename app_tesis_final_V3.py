@@ -519,11 +519,11 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     # --- MATRIZ GEOTÉCNICA DE IMPACTO CONSTRUCTIVO (Ic) ---
     def calcular_ic(nombre_tarea):
         nombre = str(nombre_tarea).lower()
-        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla']):
+        if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'drenaje', 'acera', 'conten', 'bordillo']):
             return 1.0
-        elif any(palabra in nombre for palabra in ['asfalto', 'imprimacion', 'imprimación', 'pintura', 'señalizacion', 'señalización']):
+        elif any(palabra in nombre for palabra in ['pintura', 'señalizacion', 'señalización']):
             return 1.5
-        elif any(palabra in nombre for palabra in ['base', 'subbase', 'sub-base', 'granular', 'afirmado']):
+        elif any(palabra in nombre for palabra in ['base', 'subbase', 'sub-base', 'granular', 'afirmado', 'asfalto', 'imprimacion', 'imprimación', 'estabilización']):
             return 2.0
         elif any(palabra in nombre for palabra in ['corte', 'relleno', 'subrasante', 'tierra', 'excavacion', 'excavación']):
             return 3.0
@@ -532,7 +532,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     def obtener_tr_secado(ic):
         if ic >= 3.0: return 48.0
         if ic >= 2.0: return 24.0
-        if ic >= 1.0: return 4.0
+        if ic >= 1.0: return 12.0
         return 0.0
 
     for tid in orden:
@@ -747,7 +747,8 @@ with st.sidebar:
     st.subheader("1. Horario de Obra")
     h_inicio, h_fin = st.slider("Jornada", 0, 23, (8, 17))
     st.subheader("2. Días Laborables")
-    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie","Sáb"])
+    # CORREGIDO: Default a Lunes a Viernes para coincidir con el calendario base de MS Project
+    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie"])
     mapa_d = {"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}
     dias_idx = [mapa_d[d] for d in dias_sel]
     
