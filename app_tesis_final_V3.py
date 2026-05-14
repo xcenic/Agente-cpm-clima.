@@ -315,7 +315,7 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# ALGORITMO CPM - EXPECTED VALUE BUFFER, MATRIZ GEOTÉCNICA Y CUANTIZACIÓN
+# ALGORITMO CPM - EXPECTED VALUE BUFFER Y CUANTIZACIÓN TOTAL (V10 FIELD-READY)
 # ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin):
     G = nx.DiGraph()
@@ -386,7 +386,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         new_finish = finish_dt
         new_dur_float = base_dur_float
         
-        # INICIALIZACIÓN DE VARIABLES CRÍTICA
         stats_prob = 0.0
         prob_acumulada = 0.0
         dias_evaluados = 0
@@ -403,6 +402,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             work_done = 0
             cursor = new_start
             
+            # --- EVALUACIÓN DE LLUVIA (Iteración Física) ---
             while work_done < work_needed:
                 if es_habil(cursor, dias_idx, feriados):
                     k = cursor.strftime('%m-%d')
@@ -421,52 +421,50 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                 
             stats_prob = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
                 
+            # --- LA NUEVA FUNCIÓN Q (CUANTIZACIÓN TOTAL) ---
             nota_cuantizacion = ""
+            total_cuantizado = base_dur_float
             if retraso_teorico_dias > 0:
-                retraso_cuantizado = math.ceil(retraso_teorico_dias * 2) / 2
-                horas_restantes = 8 - ((retraso_cuantizado % 1) * 8)
-                if 0 < horas_restantes < umbral_horas:
-                    retraso_cuantizado = math.ceil(retraso_cuantizado)
+                # 1. Sumamos la base y el retraso para obtener la duración teórica total (Ej: 11.44 + 2.0 = 13.44)
+                duracion_total_teorica = base_dur_float + retraso_teorico_dias
                 
+                # 2. Forzamos ese total a saltos de 0.5 (medio día) para limpiar la fracción de MS Project (Ej: 13.5)
+                total_cuantizado = math.ceil(duracion_total_teorica * 2) / 2
+                
+                # 3. Extraemos las horas de ese último día para ver si es rentable movilizar
+                fraccion = total_cuantizado % 1
+                horas_trabajadas = 8.0 if fraccion == 0 else (fraccion * 8.0)
+                
+                # 4. Si el día quedó "corto" (menor al umbral), lo penalizamos subiendo a día completo
+                if horas_trabajadas < umbral_horas:
+                    total_cuantizado = math.ceil(total_cuantizado)
+                    
+                # El retraso a inyectar será lo necesario para alcanzar esta nueva duración perfecta
+                retraso_cuantizado = total_cuantizado - base_dur_float
                 if retraso_cuantizado != retraso_teorico_dias:
-                    nota_cuantizacion = f" (Q={retraso_cuantizado}d)"
+                    nota_cuantizacion = f" (Q={round(retraso_cuantizado, 2)}d)"
             else:
                 retraso_cuantizado = 0.0
-            
+
             if note == "OK" and retraso_cuantizado > 0:
                 note = f"Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
             elif note != "OK" and retraso_cuantizado > 0:
                 note += f" | Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
             
-            # --- SOLUCIÓN DEL CALENDARIO: EMPUJE DESDE FIN BASE ---
-            shift_working_days = 0
-            if start_dt and new_start > start_dt:
-                c = start_dt
-                while c < new_start:
-                    if es_habil(c, dias_idx, feriados):
-                        shift_working_days += 1
-                    c += timedelta(days=1)
+            # --- CÁLCULO DE FECHA FIN (Bucle de Calendario desde Cero) ---
+            # Esto evita sumar o restar días flotantes. Simplemente caminamos por el calendario.
+            dias_a_avanzar = math.ceil(total_cuantizado) if total_cuantizado > 0 else 1
+            cursor_fin = new_start
+            dias_avanzados = 1
+            while dias_avanzados < dias_a_avanzar:
+                cursor_fin += timedelta(days=1)
+                if es_habil(cursor_fin, dias_idx, feriados):
+                    dias_avanzados += 1
             
-            total_delay_working_days = shift_working_days + math.ceil(retraso_cuantizado)
+            new_finish = cursor_fin
+            new_dur_float = total_cuantizado
             
-            if finish_dt:
-                cursor_fin = finish_dt
-                days_added = 0
-                while days_added < total_delay_working_days:
-                    cursor_fin += timedelta(days=1)
-                    if es_habil(cursor_fin, dias_idx, feriados):
-                        days_added += 1
-                new_finish = cursor_fin
-                new_dur_float = base_dur_float + retraso_cuantizado
-            else:
-                buffer_restante = math.ceil(retraso_cuantizado)
-                while buffer_restante > 0:
-                    if es_habil(cursor, dias_idx, feriados): buffer_restante -= 1
-                    cursor += timedelta(days=1)
-                new_finish = cursor - timedelta(days=1)
-                new_dur_float = base_dur_float + retraso_cuantizado
-                
-            # CANDADO DE LÍNEA BASE
+            # --- CANDADO DE LÍNEA BASE ---
             is_pushed_by_pred = (new_start > start_dt) if start_dt else False
             if not is_pushed_by_pred and retraso_cuantizado == 0 and finish_dt:
                 new_finish = finish_dt
