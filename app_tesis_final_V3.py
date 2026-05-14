@@ -315,7 +315,7 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# ALGORITMO CPM - EXPECTED VALUE BUFFER, MATRIZ GEOTÉCNICA Y CUANTIZACIÓN V8
+# ALGORITMO CPM - EXPECTED VALUE BUFFER, MATRIZ GEOTÉCNICA Y CUANTIZACIÓN
 # ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin):
     G = nx.DiGraph()
@@ -342,7 +342,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     # --- MATRIZ GEOTÉCNICA DE IMPACTO CONSTRUCTIVO (Ic) ---
     def calcular_ic(nombre_tarea):
         nombre = str(nombre_tarea).lower()
-        # CORRECCIÓN 2: Ampliación de palabras clave para estructuras y fundaciones (Tr 12, Ic 1.0)
         if any(palabra in nombre for palabra in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'losa', 'zapata', 'columna', 'viga', 'platea', 'fundacion', 'fundación', 'estructura']):
             return 1.0
         elif any(palabra in nombre for palabra in ['pintura', 'señalizacion', 'señalización']):
@@ -356,7 +355,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     def obtener_tr_secado(ic):
         if ic >= 3.0: return 48.0
         if ic >= 2.0: return 24.0
-        if ic >= 1.0: return 12.0 # CORRECCIÓN 2b: Hormigón/Acero ahora retorna 12 horas.
+        if ic >= 1.0: return 12.0
         return 0.0
 
     for tid in orden:
@@ -384,11 +383,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             new_start = start_dt + timedelta(days=max_shift_dias)
             while not es_habil(new_start, dias_idx, feriados): new_start += timedelta(days=1)
                 
-       new_finish = finish_dt
+        new_finish = finish_dt
         new_dur_float = base_dur_float
         
-        # CORRECCIÓN 3: Variables para calcular probabilidad PROMEDIO en lugar del PICO MÁXIMO
-        stats_prob = 0.0  # <--- ESTA ES LA LÍNEA QUE FALTABA
+        stats_prob = 0.0
         prob_acumulada = 0.0
         dias_evaluados = 0
         stats_mm = 0
@@ -410,7 +408,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                     if k in clima:
                         h = clima[k]
                         rain_total += h['mm_promedio']
-                        # Acumulamos las probabilidades para sacar el promedio
                         prob_acumulada += h['probabilidad']
                         dias_evaluados += 1
                         
@@ -421,7 +418,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                     work_done += 1 
                 cursor += timedelta(days=1)
                 
-            # Calculamos la Probabilidad Promedio
             stats_prob = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
                 
             nota_cuantizacion = ""
@@ -449,8 +445,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             new_finish = cursor - timedelta(days=1)
             new_dur_float = base_dur_float + retraso_cuantizado
             
-            # CORRECCIÓN 1: CANDADO DE LÍNEA BASE (Baseline Lock)
-            # Si no hubo retraso climático, y la predecesora no empujó el inicio, forzamos la fecha de MS Project
             is_pushed_by_pred = (new_start > start_dt) if start_dt else False
             if not is_pushed_by_pred and retraso_cuantizado == 0 and finish_dt:
                 new_finish = finish_dt
