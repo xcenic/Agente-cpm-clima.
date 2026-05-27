@@ -96,13 +96,18 @@ def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usa
 def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     sugerencias = []
     if evb_total < 3:
-        return ["✅ **Red Topológica Estable:** El riesgo climático actual es asimilable por las holguras del proyecto."]
+        return ["✅ **Red Logística Estable:** El riesgo climático actual es bajo y puede ser absorbido por las holguras normales del cronograma."]
     
     tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 48.0]
     if not tierras.empty:
         peor_tarea = tierras.loc[pd.to_numeric(tierras['Días Impacto'], errors='coerce').idxmax()]
-        sugerencias.append(f"🧠 **IA Prescriptiva (Logística):** La tarea '{peor_tarea['Actividad']}' es el cuello de botella geotécnico principal.")
-        sugerencias.append(f"👉 **Recomendación Algorítmica:** Desplazar la maquinaria asignada a este frente hacia tareas de Hormigón ($I_c = 1.0$) durante la ventana pluvial pronosticada. Esta mutación topológica reduce la latencia estocástica global en un 18%.")
+        
+        sugerencias.append(f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella. Tras las lluvias, este frente quedará inoperativo por saturación de agua (Alto Tiempo de Secado).")
+        
+        sugerencias.append("👉 **Estrategia Logística Sugerida:** Evite mantener los recursos inactivos esperando que el suelo recupere su capacidad de soporte. Se recomienda reasignar temporalmente la maquinaria y las cuadrillas de este frente hacia partidas estructurales (ej. Hormigonado, Encofrados o Acero).")
+        
+        sugerencias.append("⚙️ **Justificación Técnica:** Las tareas estructurales poseen inmunidad hídrica post-lluvia (Coeficiente de Impacto = 1.0). Al redirigir los recursos hacia estas actividades, se neutraliza la pérdida de horas-hombre y se mitiga significativamente el retraso global del proyecto.")
+        
     return sugerencias
 
 # ==============================================================================
