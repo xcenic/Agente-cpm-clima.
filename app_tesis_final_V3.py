@@ -49,7 +49,7 @@ nlp_classifier = cargar_motor_nlp()
 def calcular_ic_ia(nombre_tarea, usar_ia=True):
     nombre_str = str(nombre_tarea).lower()
     if not usar_ia or not nlp_classifier:
-        # Fallback Determinista (Tu lógica original V3)
+        # Fallback Determinista (Lógica estática)
         if any(w in nombre_str for w in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'losa', 'zapata', 'columna', 'viga', 'platea', 'fundacion', 'fundación', 'estructura', 'paisajismo', 'limpieza', 'grama', 'terminacion', 'terminación']): return 1.0
         elif any(w in nombre_str for w in ['pintura', 'señalizacion', 'señalización']): return 1.5
         elif any(w in nombre_str for w in ['base', 'subbase', 'sub-base', 'granular', 'afirmado', 'asfalto', 'imprimacion', 'imprimación']): return 2.0
@@ -80,7 +80,7 @@ ml_tr_model = entrenar_modelo_termodinamico()
 
 def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usar_ia=True):
     if not usar_ia or not ml_tr_model:
-        # Lógica V3 Estática
+        # Lógica Estática de Respaldo
         if tipo_suelo_ic >= 3.0: return 48.0, tipo_suelo_ic
         elif tipo_suelo_ic >= 2.0: return 24.0, tipo_suelo_ic
         elif tipo_suelo_ic >= 1.5: return 12.0, tipo_suelo_ic
@@ -338,9 +338,9 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# ALGORITMO CPM - CON INYECCIÓN IA (NLP + ML)
+# ALGORITMO CPM - CON INYECCIÓN IA (NLP + ML MULTIVARIABLE)
 # ==============================================================================
-def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml):
+def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
     G = nx.DiGraph()
     for _, row in df.iterrows():
         tid = row['ID']
@@ -399,10 +399,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         last_rain_date = None
 
         # ---------------------------------------------------------
-        # INYECCIÓN IA: Clasificación y Termodinámica Dinámica
+        # INYECCIÓN IA: Clasificación y Termodinámica Dinámica (Multi-variable UI)
         # ---------------------------------------------------------
         ic_base = calcular_ic_ia(row['Name'], use_nlp)
-        tr_horas, impacto_constructivo_ic = calcular_tr_y_ic_dinamico(mm_min, 30.0, 85.0, ic_base, use_ml)
+        tr_horas, impacto_constructivo_ic = calcular_tr_y_ic_dinamico(mm_min, temp_global, hum_global, ic_base, use_ml)
         
         if not row['IsSummary'] and not row['IsMilestone'] and new_start:
             work_needed = math.ceil(base_dur_float) if base_dur_float > 0 else 1
@@ -580,7 +580,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     return df_res.sort_values('ID').reset_index(drop=True)
 
 # ==============================================================================
-# 7. INTERFAZ PRINCIPAL (SIDEBAR ACTUALIZADO CON IA)
+# 7. INTERFAZ PRINCIPAL (SIDEBAR ACTUALIZADO CON IA Y TERMODINÁMICA)
 # ==============================================================================
 with st.sidebar:
     st.header("⚙️ Configuración")
@@ -604,6 +604,11 @@ with st.sidebar:
     activar_nlp = st.toggle("Habilitar NLP (Clasificación Semántica)", value=True)
     activar_ml = st.toggle("Habilitar Machine Learning (Tr Dinámico)", value=True)
     activar_ag = st.toggle("Habilitar Agente Prescriptivo", value=True)
+    
+    st.markdown("---")
+    st.subheader("🌡️ Termodinámica (Machine Learning)")
+    temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, 30.0, 0.5, help="Variable predictora para el cálculo de evaporación en el Random Forest.")
+    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0, help="Déficit de presión de vapor para modelar el secado del estrato.")
 
 # ==============================================================================
 # SECCIÓN PRINCIPAL: UBICACIÓN Y MAPA PANORÁMICO
@@ -700,7 +705,7 @@ if uploaded:
             st.toast('Iniciando simulación topológica...', icon='🚀')
             
             with st.spinner("Procesando motor estocástico y modelos cognitivos..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml)
+                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
                 st.toast('¡Simulación completada con éxito!', icon='✅')
