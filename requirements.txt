@@ -1,10 +1,21 @@
+# --- INFRAESTRUCTURA Y FRONTEND (UI) ---
 streamlit
 pandas
-networkx
-folium
-streamlit-folium
-xlsxwriter
 requests
+xlsxwriter
+
+# --- TOPOLOGÍA Y VISUALIZACIÓN DE DATOS ---
+networkx
 plotly
 streamlit-aggrid
 streamlit-lottie
+
+# --- SISTEMAS DE INFORMACIÓN GEOGRÁFICA (GIS) ---
+folium
+streamlit-folium
+
+# --- MOTORES DE INTELIGENCIA ARTIFICIAL (IA) ---
+numpy
+scikit-learn
+transformers
+torch
