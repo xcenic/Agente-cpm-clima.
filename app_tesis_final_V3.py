@@ -13,18 +13,17 @@ import plotly.express as px
 import plotly.graph_objects as go
 from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode, GridUpdateMode
 
-# LIBRERÍAS DE MAPA, GRAFOS Y ANIMACIONES
+# LIBRERÍAS DE MAPA Y GRAFOS
 try:
     import folium
     from streamlit_folium import st_folium
     import networkx as nx
-    from streamlit_lottie import st_lottie
 except ImportError:
-    st.error("⚠️ Falta instalar librerías. Ejecuta: pip install folium streamlit-folium networkx plotly streamlit-aggrid streamlit-lottie")
+    st.error("⚠️ Falta instalar librerías. Ejecuta: pip install folium streamlit-folium networkx plotly streamlit-aggrid")
     st.stop()
 
 # ==============================================================================
-# MÓDULOS DE INTELIGENCIA ARTIFICIAL (35% CAPA COGNITIVA)
+# MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING
 # ==============================================================================
 try:
     from transformers import pipeline
@@ -34,7 +33,7 @@ try:
     warnings.filterwarnings("ignore")
     IA_DISPONIBLE = True
 except ImportError:
-    st.sidebar.error("⚠️ Faltan librerías de IA. Para activar el 35% cognitivo ejecuta: pip install transformers torch scikit-learn numpy")
+    st.sidebar.error("⚠️ Faltan librerías de IA. Para activar la capa cognitiva ejecuta: pip install transformers torch scikit-learn numpy")
     IA_DISPONIBLE = False
 
 # --- MOTOR IA 1: PROCESAMIENTO DE LENGUAJE NATURAL (NLP) ---
@@ -92,7 +91,7 @@ def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usa
     ic_dinamico = round(1.0 + tr_dias, 2)
     return tr_horas, ic_dinamico
 
-# --- MOTOR IA 3: AGENTE PRESCRIPTIVO DE MITIGACIÓN ---
+# --- MOTOR IA 3: AGENTE PRESCRIPTIVO DE MITIGACIÓN (VERSIÓN ACADÉMICA/GERENCIAL) ---
 def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     sugerencias = []
     if evb_total < 3:
@@ -101,19 +100,15 @@ def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 48.0]
     if not tierras.empty:
         peor_tarea = tierras.loc[pd.to_numeric(tierras['Días Impacto'], errors='coerce').idxmax()]
-        
         sugerencias.append(f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella. Tras las lluvias, este frente quedará inoperativo por saturación de agua (Alto Tiempo de Secado).")
-        
         sugerencias.append("👉 **Estrategia Logística Sugerida:** Evite mantener los recursos inactivos esperando que el suelo recupere su capacidad de soporte. Se recomienda reasignar temporalmente la maquinaria y las cuadrillas de este frente hacia partidas estructurales (ej. Hormigonado, Encofrados o Acero).")
-        
         sugerencias.append("⚙️ **Justificación Técnica:** Las tareas estructurales poseen inmunidad hídrica post-lluvia (Coeficiente de Impacto = 1.0). Al redirigir los recursos hacia estas actividades, se neutraliza la pérdida de horas-hombre y se mitiga significativamente el retraso global del proyecto.")
-        
     return sugerencias
 
 # ==============================================================================
-# 1. CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS 2026)
+# CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | Motor CPM", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico", layout="wide", page_icon="⚡")
 
 st.markdown("""
     <style>
@@ -125,9 +120,6 @@ st.markdown("""
         [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
         .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 12px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 0.5rem 1rem; box-shadow: 0 4px 6px -1px rgba(175, 30, 45, 0.2); }
         .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(175, 30, 45, 0.3); background-color: #901924; }
-        .manual-section { background-color: #F8FAFC; padding: 20px; border-radius: 12px; border-left: 4px solid #3B82F6; margin-bottom: 16px; border-top: 1px solid #E2E8F0; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; }
-        .manual-section h4 { color: #1E293B; margin-top: 0; font-weight: 700; font-size: 1.1rem; }
-        .manual-section ul { color: #475569; }
         .kpi-container { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
         .kpi-box { background-color: #FFFFFF; border-radius: 16px; padding: 24px; flex: 1; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #E2E8F0; transition: transform 0.2s ease; position: relative; overflow: hidden; }
         .kpi-box:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
@@ -156,45 +148,11 @@ with col_logo:
     except: st.empty()
 
 with col_banner:
-    banner_html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;800&display=swap');
-            body { margin: 0; padding: 0; background-color: transparent; }
-            #particles-container { position: relative; width: 100%; height: 150px; background-color: #FFFFFF; border-radius: 16px; overflow: hidden; border: 1px solid #E2E8F0; border-bottom: 4px solid #AF1E2D; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-            #particles-js { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-            .banner-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 2; pointer-events: none; width: 90%; }
-            .banner-text h1 { font-family: 'Inter', sans-serif; font-size: 2rem; font-weight: 800; color: #0F172A; margin: 0; letter-spacing: -0.02em; }
-            .banner-text p { font-family: 'Inter', sans-serif; font-size: 1.05rem; color: #475569; margin-top: 6px; margin-bottom: 0; font-weight: 500; }
-        </style>
-    </head>
-    <body>
-        <div id="particles-container">
-            <div id="particles-js"></div>
-            <div class="banner-text">
-                <h1>CHRONOFLUX AI</h1>
-                <p>Motor de Simulación Climática y Optimización Topológica CPM</p>
-            </div>
-        </div>
-        <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-        <script>
-            particlesJS("particles-js", {
-                "particles": { "number": { "value": 70, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#000000" }, "shape": { "type": "circle" }, "opacity": { "value": 0.4, "random": false }, "size": { "value": 3.5, "random": true }, "line_linked": { "enable": true, "distance": 150, "color": "#000000", "opacity": 0.25, "width": 1.2 }, "move": { "enable": true, "speed": 2.0, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false } },
-                "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "grab" }, "onclick": { "enable": true, "mode": "push" }, "resize": true }, "modes": { "grab": { "distance": 180, "line_linked": { "opacity": 0.8 } }, "push": { "particles_nb": 3 } } }, "retina_detect": true
-            });
-        </script>
-    </body>
-    </html>
-    """
-    components.html(banner_html, height=160)
-
-with st.expander("📘 VER MANUAL OPERATIVO DEL SISTEMA"):
     st.markdown("""
-    <div class="manual-section"><h4>1. Configuración de Entorno</h4><ul><li>Defina el horario, días laborables y observe el cálculo de feriados en el panel lateral.</li></ul></div>
-    <div class="manual-section"><h4>2. Geolocalización (Caché Optimizado)</h4><ul><li>Haga clic en el mapa. El sistema memoriza zonas para cálculos inmediatos.</li></ul></div>
-    <div class="manual-section"><h4>3. Carga y Simulación Avanzada</h4><ul><li>Suba su XML. El motor <i>Expected Value Buffer</i> recalculará la red y mutará la ruta crítica automáticamente.</li></ul></div>
+        <div style="background-color: #FFFFFF; border-radius: 16px; border-bottom: 4px solid #AF1E2D; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            <h1 style="margin:0; font-weight: 800; color: #0F172A; font-size: 2.2rem;">CHRONOFLUX AI</h1>
+            <p style="margin:0; color: #475569; font-weight: 500; font-size: 1.1rem;">Motor Multivariable de Simulación Climática y Optimización Topológica CPM</p>
+        </div>
     """, unsafe_allow_html=True)
 
 COORDENADAS_RD = {
@@ -365,7 +323,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         
     fecha_fin_calculada = {}
     res_temp = {}
-    jornada_horas = h_fin - h_inicio if h_fin > h_inicio else 8
 
     for tid in orden:
         row = G.nodes[tid]['data']
@@ -404,7 +361,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         last_rain_date = None
 
         # ---------------------------------------------------------
-        # INYECCIÓN IA: Clasificación y Termodinámica Dinámica (Multi-variable UI)
+        # INYECCIÓN IA MULTIVARIABLE: NLP + Machine Learning (Termodinámica)
         # ---------------------------------------------------------
         ic_base = calcular_ic_ia(row['Name'], use_nlp)
         tr_horas, impacto_constructivo_ic = calcular_tr_y_ic_dinamico(mm_min, temp_global, hum_global, ic_base, use_ml)
@@ -414,7 +371,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             work_done = 0
             cursor = new_start
             
-            # --- EVALUACIÓN DE LLUVIA ---
+            # --- EVALUACIÓN CLIMÁTICA ---
             while work_done < work_needed:
                 if es_habil(cursor, dias_idx, feriados):
                     k = cursor.strftime('%m-%d')
@@ -433,7 +390,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                 
             stats_prob = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
                 
-            # --- FUNCIÓN Q (CUANTIZACIÓN LOGÍSTICA) ---
+            # --- OPERADOR DE CUANTIZACIÓN (Q) Y UMBRAL OPERATIVO (Ut) ---
             nota_cuantizacion = ""
             total_cuantizado = base_dur_float
             if retraso_teorico_dias > 0:
@@ -497,6 +454,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     valid_efs = [data['EF'] for n, data in G.nodes(data=True) if data.get('EF') is not None]
     max_project_ef = max(valid_efs) if valid_efs else None
 
+    # CALCULO DE HOLGURAS (Backward Pass)
     for tid in reversed(orden):
         node = G.nodes[tid]
         if node.get('EF') is None: continue
@@ -585,10 +543,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     return df_res.sort_values('ID').reset_index(drop=True)
 
 # ==============================================================================
-# 7. INTERFAZ PRINCIPAL (SIDEBAR ACTUALIZADO CON IA Y TERMODINÁMICA)
+# INTERFAZ PRINCIPAL Y BARRA LATERAL (SIDEBAR IA)
 # ==============================================================================
 with st.sidebar:
-    st.header("⚙️ Configuración")
+    st.header("⚙️ Configuración Logística")
     st.subheader("1. Horario de Obra")
     h_inicio, h_fin = st.slider("Jornada", 0, 23, (8, 17))
     st.subheader("2. Días Laborables")
@@ -597,26 +555,18 @@ with st.sidebar:
     dias_idx = [mapa_d[d] for d in dias_sel]
     
     st.markdown("---")
-    st.subheader("3. Feriados Nacionales")
-    anio_ver = st.selectbox("Año a visualizar:", [anio_actual, anio_actual + 1, anio_actual + 2])
-    f_show = {k:v for k,v in feriados_dict.items() if k.year == anio_ver}
-    df_f = pd.DataFrame(list(f_show.items()), columns=['Fecha', 'Celebración']).sort_values('Fecha')
-    df_f['Fecha'] = pd.to_datetime(df_f['Fecha']).dt.strftime('%d-%b')
-    st.dataframe(df_f, hide_index=True, use_container_width=True, height=250)
-
-    st.markdown("---")
-    st.header("🧠 Capa Cognitiva (35% IA)")
-    activar_nlp = st.toggle("Habilitar NLP (Clasificación Semántica)", value=True)
-    activar_ml = st.toggle("Habilitar Machine Learning (Tr Dinámico)", value=True)
-    activar_ag = st.toggle("Habilitar Agente Prescriptivo", value=True)
+    st.header("🧠 Capa Cognitiva e Inteligencia Artificial")
+    activar_nlp = st.toggle("Procesamiento de Lenguaje Natural (Clasificación Semántica)", value=True)
+    activar_ml = st.toggle("Motor Random Forest (Tiempo de Recuperación Tr)", value=True)
+    activar_ag = st.toggle("Agente Prescriptivo (Mitigación Topológica)", value=True)
     
     st.markdown("---")
-    st.subheader("🌡️ Termodinámica (Machine Learning)")
+    st.subheader("🌡️ Termodinámica (Variables de Inferencia Continua)")
     temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, 30.0, 0.5, help="Variable predictora para el cálculo de evaporación en el Random Forest.")
-    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0, help="Déficit de presión de vapor para modelar el secado del estrato.")
+    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0, help="Déficit de presión de vapor para modelar el secado del estrato geotécnico.")
 
 # ==============================================================================
-# SECCIÓN PRINCIPAL: UBICACIÓN Y MAPA PANORÁMICO
+# GEOLOCALIZACIÓN Y MAPA
 # ==============================================================================
 def actualizar_desde_dropdown():
     coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
@@ -653,7 +603,6 @@ with st.spinner("Accediendo al caché geoespacial o descargando micro-clima...")
                            color_discrete_sequence=['#AF1E2D'],
                            hover_data={'prob_lluvia': ':.1%'},
                            labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-        
         fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
         fig_clima.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
         st.plotly_chart(fig_clima, use_container_width=True)
@@ -670,7 +619,7 @@ components.html(windy_html, height=450)
 st.markdown("---")
 
 # ==============================================================================
-# CARGA DE XML Y SIMULACIÓN
+# CARGA DE XML Y EJECUCIÓN DEL MOTOR
 # ==============================================================================
 uploaded = st.file_uploader("📂 Paso Final: Cargar Cronograma XML (MS Project)", type=['xml'])
 
@@ -685,7 +634,7 @@ if uploaded:
     errores = df_aud[(df_aud['Errores'] != 'OK')]
     
     if not errores.empty:
-        st.warning(f"⚠️ {len(errores)} Tareas con problemas lógicos.")
+        st.warning(f"⚠️ {len(errores)} Tareas con problemas lógicos topológicos.")
         decision = st.radio("Acción de Auditoría:", ["Reparar Automáticamente (Recomendado)", "Descargar Errores (Excel)", "Ignorar"], horizontal=True)
         if decision == "Descargar Errores (Excel)":
             b = io.BytesIO()
@@ -704,12 +653,12 @@ if uploaded:
         c_p, c_m, c_u = st.columns(3)
         prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, 65, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
         mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, 5.0, 0.5, help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, 3.0, 0.5, help="Umbral Operativo (Ut). Si la fracción de horas operables es menor a este umbral, se pierde la jornada completa.")
+        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, 3.0, 0.5, help="Umbral Operativo (Ut). Si la fracción de horas operables es menor a este umbral, se pierde la jornada completa protegiendo el OPEX.")
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             st.toast('Iniciando simulación topológica...', icon='🚀')
             
-            with st.spinner("Procesando motor estocástico y modelos cognitivos..."):
+            with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
                 final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
