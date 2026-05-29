@@ -23,7 +23,7 @@ except ImportError:
     st.stop()
 
 # ==============================================================================
-# MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING
+# MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING (45% ARQUITECTURA)
 # ==============================================================================
 try:
     from transformers import pipeline
@@ -36,7 +36,7 @@ except ImportError:
     st.sidebar.error("⚠️ Faltan librerías de IA. Para activar la capa cognitiva ejecuta: pip install transformers torch scikit-learn numpy")
     IA_DISPONIBLE = False
 
-# --- MOTOR IA 1: PROCESAMIENTO DE LENGUAJE NATURAL (NLP) ---
+# --- PILAR IA 1 (15%): EXTRACCIÓN SEMÁNTICA WBS (NLP ZERO-SHOT) ---
 @st.cache_resource(show_spinner=False)
 def cargar_motor_nlp():
     if not IA_DISPONIBLE: return None
@@ -45,68 +45,86 @@ def cargar_motor_nlp():
 
 nlp_classifier = cargar_motor_nlp()
 
-def calcular_ic_ia(nombre_tarea, usar_ia=True):
+def calcular_ic_base_nlp(nombre_tarea, usar_ia=True):
     nombre_str = str(nombre_tarea).lower()
     if not usar_ia or not nlp_classifier:
-        # Fallback Determinista (Lógica estática)
-        if any(w in nombre_str for w in ['acero', 'hormigon', 'hormigón', 'encofrado', 'vaciado', 'muro', 'alcantarilla', 'losa', 'zapata', 'columna', 'viga', 'platea', 'fundacion', 'fundación', 'estructura', 'paisajismo', 'limpieza', 'grama', 'terminacion', 'terminación']): return 1.0
-        elif any(w in nombre_str for w in ['pintura', 'señalizacion', 'señalización']): return 1.5
-        elif any(w in nombre_str for w in ['base', 'subbase', 'sub-base', 'granular', 'afirmado', 'asfalto', 'imprimacion', 'imprimación']): return 2.0
-        elif any(w in nombre_str for w in ['corte', 'relleno', 'subrasante', 'tierra', 'excavacion', 'excavación']): return 3.0
-        return 1.5
+        # Fallback Determinista (RegEx)
+        if any(w in nombre_str for w in ['acero', 'hormigon', 'hormigón', 'encofrado', 'estructura']): return 1.0
+        elif any(w in nombre_str for w in ['base', 'subbase', 'granular', 'asfalto']): return 2.0
+        elif any(w in nombre_str for w in ['corte', 'relleno', 'subrasante', 'tierra', 'excavacion']): return 3.0
+        return 1.0
 
-    categorias = ["estructuras de hormigón y acero", "pavimento asfáltico y terminaciones", "bases granulares y subbases", "movimiento de tierras pesado y excavación"]
-    mapa_ic = {categorias[0]: 1.0, categorias[1]: 1.5, categorias[2]: 2.0, categorias[3]: 3.0}
+    # Categorías exactas del Apartado 5.6.1 de la Tesis
+    categorias = [
+        "estructuras de hormigón y acero estructural", 
+        "bases granulares y pavimentos de drenaje rápido", 
+        "movimiento de tierras y arcillas de alta retencion capilar"
+    ]
+    mapa_ic = {categorias[0]: 1.0, categorias[1]: 2.0, categorias[2]: 3.0}
     try:
         res = nlp_classifier(nombre_str, categorias)
         return mapa_ic[res['labels'][0]]
-    except: return 1.5
+    except: return 1.0
 
-# --- MOTOR IA 2: MACHINE LEARNING PARA TIEMPO DE RECUPERACIÓN (Tr) ---
+# --- PILAR IA 2 (15%): INFERENCIA PIML (Tiempo de Recuperación Tr) ---
 @st.cache_resource(show_spinner=False)
 def entrenar_modelo_termodinamico():
     if not IA_DISPONIBLE: return None
-    # Dataset Base Termodinámico: [Lluvia(mm), Temp(C), Humedad(%), Categoria_Suelo] -> Output: Días de secado
-    X = np.array([[40, 25, 85, 1], [15, 32, 60, 1], [50, 28, 90, 1],
-                  [40, 25, 85, 2], [15, 32, 60, 2], [50, 28, 90, 2],
-                  [40, 25, 85, 3], [15, 32, 60, 3], [50, 28, 90, 3]])
-    y = np.array([3.5, 1.5, 4.0, 1.5, 0.5, 2.0, 2.0, 1.0, 3.0])
+    # Dataset Termodinámico: [Lluvia(mm), Temp(C), Humedad(%), Categoria_Suelo] -> Output: Tr (Horas)
+    X = np.array([
+        [40, 25, 85, 1], [15, 32, 60, 1], [50, 28, 90, 1], # Hormigón: Tr = 0h
+        [40, 25, 85, 2], [15, 32, 60, 2], [50, 28, 90, 2], # Granular: Tr rápido (4h-12h)
+        [40, 25, 85, 3], [15, 32, 60, 3], [50, 28, 90, 3]  # Arcillas: Tr severo (48h-72h)
+    ])
+    y = np.array([0.0, 0.0, 0.0, 12.0, 4.0, 8.0, 72.0, 24.0, 48.0])
     modelo = RandomForestRegressor(n_estimators=100, random_state=42)
     modelo.fit(X, y)
     return modelo
 
 ml_tr_model = entrenar_modelo_termodinamico()
 
-def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usar_ia=True):
+def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, ic_base, horas_jornada, usar_ia=True):
+    # Aplicación estricta del Apartado 5.6.2 (Ecuación del Coeficiente Dinámico)
     if not usar_ia or not ml_tr_model:
-        # Lógica Estática de Respaldo
-        if tipo_suelo_ic >= 3.0: return 48.0, tipo_suelo_ic
-        elif tipo_suelo_ic >= 2.0: return 24.0, tipo_suelo_ic
-        elif tipo_suelo_ic >= 1.5: return 12.0, tipo_suelo_ic
-        else: return 0.0, tipo_suelo_ic
-        
-    suelo_cat = 1 if tipo_suelo_ic >= 3.0 else (2 if tipo_suelo_ic >= 2.0 else 3)
-    tr_dias = ml_tr_model.predict([[lluvia_mm, temp_c, humedad_pct, suelo_cat]])[0]
-    tr_horas = round(tr_dias * 24.0, 1)
-    ic_dinamico = round(1.0 + tr_dias, 2)
-    return tr_horas, ic_dinamico
+        if ic_base >= 3.0: tr_horas = 48.0
+        elif ic_base >= 2.0: tr_horas = 8.0
+        else: tr_horas = 0.0
+    else:
+        tr_horas = ml_tr_model.predict([[lluvia_mm, temp_c, humedad_pct, ic_base]])[0]
+    
+    # Ecuación de la Tesis: Ic_dinamico = 1.0 + (Tr / Hw)
+    ic_dinamico = round(1.0 + (tr_horas / horas_jornada), 2)
+    return round(tr_horas, 1), ic_dinamico
 
-# --- MOTOR IA 3: AGENTE PRESCRIPTIVO DE MITIGACIÓN (VERSIÓN ACADÉMICA/GERENCIAL) ---
+# --- PILAR IA 3 (15%): AGENTE PRESCRIPTIVO (Algoritmo de Búsqueda Heurística) ---
 def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     sugerencias = []
-    if evb_total < 3:
-        return ["✅ **Red Logística Estable:** El riesgo climático actual es bajo y puede ser absorbido por las holguras normales del cronograma."]
+    if evb_total <= 0:
+        return ["✅ **Ruta Crítica Estable:** No se detecta saturación geotécnica que amerite reasignación topológica."]
     
-    tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 48.0]
-    if not tierras.empty:
-        peor_tarea = tierras.loc[pd.to_numeric(tierras['Días Impacto'], errors='coerce').idxmax()]
-        sugerencias.append(f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella. Tras las lluvias, este frente quedará inoperativo por saturación de agua (Alto Tiempo de Secado).")
-        sugerencias.append("👉 **Estrategia Logística Sugerida:** Evite mantener los recursos inactivos esperando que el suelo recupere su capacidad de soporte. Se recomienda reasignar temporalmente la maquinaria y las cuadrillas de este frente hacia partidas estructurales (ej. Hormigonado, Encofrados o Acero).")
-        sugerencias.append("⚙️ **Justificación Técnica:** Las tareas estructurales poseen inmunidad hídrica post-lluvia (Coeficiente de Impacto = 1.0). Al redirigir los recursos hacia estas actividades, se neutraliza la pérdida de horas-hombre y se mitiga significativamente el retraso global del proyecto.")
+    # Búsqueda Heurística: Identificar nodos bloqueados (Arcillas) y Nodos Refugio (Estructuras) concurrentes
+    bloqueadas = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 24.0]
+    refugios = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') <= 2.0]
+    
+    if not bloqueadas.empty and not refugios.empty:
+        for _, block in bloqueadas.iterrows():
+            for _, ref in refugios.iterrows():
+                # Condición de solapamiento temporal (concurrencia)
+                if max(block['Inicio Nuevo'], ref['Inicio Nuevo']) <= min(block['Fin Nuevo'], ref['Fin Nuevo']):
+                    sugerencias.append(
+                        f"🔄 **Directriz de Mitigación Topológica (Agente Heurístico):**\n\n"
+                        f"⚠️ Frente Bloqueado: **{block['Actividad']}** (Secado: {block['Tr (Secado/Horas)']}h).\n"
+                        f"🛡️ Nodo Refugio Disponible: **{ref['Actividad']}** (Secado: {ref['Tr (Secado/Horas)']}h).\n"
+                        f"**Acción Prescrita:** Reasignar cuadrillas y equipos operativos desde el frente de terracería hacia el nodo refugio estructural. Esta acción protege el OPEX logístico y evita el colapso del camino crítico durante el tiempo de recuperación."
+                    )
+                    break # Genera una recomendación accionable por frente
+    if not sugerencias and not bloqueadas.empty:
+        sugerencias.append("⚠️ **Alerta de Parálisis Sistémica:** Múltiples frentes bloqueados por lodo, pero no se detectaron 'Nodos Refugio' concurrentes para reasignar la flotilla.")
+    
     return sugerencias
 
 # ==============================================================================
-# CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
+# CONFIGURACIÓN Y ESTILO (UI/UX)
 # ==============================================================================
 st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico", layout="wide", page_icon="⚡")
 
@@ -118,17 +136,13 @@ st.markdown("""
         .stApp { background-color: #F4F7F9; }
         #MainMenu {visibility: hidden;} footer {visibility: hidden;}
         [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
-        .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 12px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 0.5rem 1rem; box-shadow: 0 4px 6px -1px rgba(175, 30, 45, 0.2); }
-        .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(175, 30, 45, 0.3); background-color: #901924; }
+        .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 12px; border: none; font-weight: 600; padding: 0.5rem 1rem; }
+        .stButton>button:hover { background-color: #901924; }
         .kpi-container { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
-        .kpi-box { background-color: #FFFFFF; border-radius: 16px; padding: 24px; flex: 1; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #E2E8F0; transition: transform 0.2s ease; position: relative; overflow: hidden; }
-        .kpi-box:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .kpi-box::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background-color: #AF1E2D; }
-        .kpi-title { font-size: 0.85rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 8px; }
+        .kpi-box { background-color: #FFFFFF; border-radius: 16px; padding: 24px; flex: 1; border: 1px solid #E2E8F0; border-top: 4px solid #AF1E2D;}
+        .kpi-title { font-size: 0.85rem; color: #64748B; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; }
         .kpi-value { font-size: 2.5rem; font-weight: 800; color: #0F172A; line-height: 1.2; }
         .kpi-value span { font-size: 1.2rem; font-weight: 600; color: #94A3B8; }
-        .kpi-value.danger { color: #EF4444; }
-        .kpi-subtitle { font-size: 0.85rem; color: #94A3B8; margin-top: 8px; }
         .ia-card { background-color: #e0f2fe; padding: 1.5rem; border-left: 5px solid #2563eb; border-radius: 5px; margin-bottom: 1rem; color: #1e3a8a; font-weight: 500;}
     </style>
 """, unsafe_allow_html=True)
@@ -142,37 +156,15 @@ if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_act
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 
 col_logo, col_banner = st.columns([1, 6], gap="medium")
-with col_logo:
-    st.markdown("<br>", unsafe_allow_html=True)
-    try: st.image("logo_chronoflux.png", use_container_width=True)
-    except: st.empty()
-
 with col_banner:
     st.markdown("""
-        <div style="background-color: #FFFFFF; border-radius: 16px; border-bottom: 4px solid #AF1E2D; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="background-color: #FFFFFF; border-radius: 16px; border-bottom: 4px solid #AF1E2D; padding: 20px;">
             <h1 style="margin:0; font-weight: 800; color: #0F172A; font-size: 2.2rem;">CHRONOFLUX AI</h1>
-            <p style="margin:0; color: #475569; font-weight: 500; font-size: 1.1rem;">Motor Multivariable de Simulación Climática y Optimización Topológica CPM</p>
+            <p style="margin:0; color: #475569; font-weight: 500; font-size: 1.1rem;">Motor Cognitivo de Simulación Climática y Optimización Topológica (PIML + NLP)</p>
         </div>
     """, unsafe_allow_html=True)
 
-COORDENADAS_RD = {
-    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
-    "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
-    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525),
-    "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029),
-    "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565),
-    "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515),
-    "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Romana - La Romana (Cabecera)": (18.4273, -68.9728),
-    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511),
-    "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450),
-    "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431),
-    "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884),
-    "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112),
-    "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299),
-    "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468),
-    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457),
-    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
-}
+COORDENADAS_RD = { "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Santiago": (19.4517, -70.6970) }
 
 def calcular_pascua(year):
     a = year % 19; b = year // 100; c = year % 100; d = b // 4; e = b % 4; f = (b + 8) // 25
@@ -188,11 +180,8 @@ def obtener_feriados_rd():
     for y in range(current_year, current_year + 3):
         pascua = calcular_pascua(y)
         feriados.update({
-            date(y, 1, 1): "Año Nuevo", date(y, 1, 6): "Día de los Reyes", date(y, 1, 21): "Día de la Altagracia",
-            date(y, 1, 26): "Día de Duarte", date(y, 2, 27): "Independencia", pascua - timedelta(days=2): "Viernes Santo",
-            date(y, 5, 1): "Día del Trabajo", pascua + timedelta(days=60): "Corpus Christi",
-            date(y, 8, 16): "Restauración", date(y, 9, 24): "Las Mercedes",
-            date(y, 11, 6): "Constitución", date(y, 12, 25): "Navidad"
+            date(y, 1, 1): "Año Nuevo", date(y, 2, 27): "Independencia", pascua - timedelta(days=2): "Viernes Santo",
+            date(y, 5, 1): "Día del Trabajo", date(y, 12, 25): "Navidad"
         })
     return feriados, current_year
 
@@ -205,674 +194,197 @@ def es_habil(fecha, dias_ok_idx, feriados):
 
 @st.cache_data(ttl=timedelta(days=7), show_spinner=False)
 def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
-    lat_r = round(lat, 2)
-    lon_r = round(lon, 2)
+    lat_r = round(lat, 2); lon_r = round(lon, 2)
     url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat_r}&longitude={lon_r}&start_date=2014-01-01&end_date=2023-12-31&hourly=precipitation&timezone=auto"
     try:
-        r = requests.get(url)
-        data = r.json()
+        r = requests.get(url); data = r.json()
         df = pd.DataFrame({'time': pd.to_datetime(data['hourly']['time']), 'mm': data['hourly']['precipitation']})
         df['hora'] = df['time'].dt.hour
         df_laboral = df[(df['hora'] >= hora_inicio) & (df['hora'] <= hora_fin)].copy()
         df_laboral['fecha_date'] = df_laboral['time'].dt.date
         df_daily_sum = df_laboral.groupby('fecha_date')['mm'].sum().reset_index()
         df_daily_sum['dia_mes'] = pd.to_datetime(df_daily_sum['fecha_date']).dt.strftime('%m-%d')
-        df_daily_sum['fecha_full'] = pd.to_datetime(df_daily_sum['fecha_date'])
         df_daily_sum['lluvio'] = (df_daily_sum['mm'] > 0.5).astype(int)
         
-        clima_map = df_daily_sum.groupby('dia_mes').agg(
-            probabilidad=('mm', lambda x: (x > 0.5).mean()), 
-            mm_promedio=('mm', 'mean'),
-            ultima_fecha_lluvia=('fecha_full', lambda x: x[df_daily_sum.loc[x.index, 'mm'] > 0.5].max() if (df_daily_sum.loc[x.index, 'mm'] > 0.5).any() else None)
-        ).to_dict('index')
-        
-        df_daily_sum['mes_num'] = pd.to_datetime(df_daily_sum['fecha_date']).dt.month
-        mapa_meses = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
-        df_daily_sum['Mes'] = df_daily_sum['mes_num'].map(mapa_meses)
-        df_grafico = df_daily_sum.groupby(['mes_num', 'Mes']).agg(mm=('mm', 'mean'), prob_lluvia=('lluvio', 'mean')).reset_index()
-        return df_grafico, clima_map, list(mapa_meses.values())
+        clima_map = df_daily_sum.groupby('dia_mes').agg(probabilidad=('mm', lambda x: (x > 0.5).mean()), mm_promedio=('mm', 'mean')).to_dict('index')
+        return None, clima_map, None
     except: return None, None, None
-
-def redondear_duracion(val): return round(float(val), 2)
 
 def auditar_xml(file):
     tree = ET.parse(file)
     root = tree.getroot()
     prefix = root.tag.split("}")[0] + "}" if "}" in root.tag else ""
-    title = root.find(prefix + "Title")
-    st.session_state['project_name'] = title.text if (title is not None and title.text) else "Proyecto_Exportado"
     hours_per_day = 8.0
     h_pd_node = root.find(prefix + "MinutesPerDay")
     if h_pd_node is not None and h_pd_node.text:
         try: hours_per_day = float(h_pd_node.text) / 60.0
         except: pass
 
-    def parse_duration_days(dur_str):
-        if not dur_str: return 0.0
-        match = re.search(r'PT(\d+)H', dur_str)
-        if match: return float(match.group(1)) / hours_per_day 
-        return 0.0
+    def parse_dur(dur_str):
+        match = re.search(r'PT(\d+)H', dur_str) if dur_str else None
+        return float(match.group(1)) / hours_per_day if match else 0.0
 
-    def find_val(el, tag):
-        x = el.find(prefix + tag)
-        return x.text if x is not None else None
+    def find_v(el, tag): x = el.find(prefix + tag); return x.text if x is not None else None
 
-    tareas = []
-    uid_to_id = {}
-    valid_ids = []
-
+    tareas, uid_to_id, valid_ids = [], {}, []
     for task in root.iter(prefix + 'Task'):
-        uid = find_val(task, 'UID')
-        row_id = find_val(task, 'ID')
-        active = find_val(task, 'Active')
-        summary = find_val(task, 'Summary')
+        uid = find_v(task, 'UID')
+        row_id = find_v(task, 'ID')
         if uid and row_id: uid_to_id[uid] = row_id
-        if active != '0' and summary == '0' and row_id:
-            try: valid_ids.append(int(row_id))
-            except: pass
-    valid_ids.sort()
 
     for task in root.iter(prefix + 'Task'):
-        active = find_val(task, 'Active')
-        if active != '0': 
-            tid = int(find_val(task, 'ID') or 0)
-            is_summary = (find_val(task, 'Summary') == '1')
-            is_milestone = (find_val(task, 'Milestone') == '1')
-            preds = []
-            for link in task.findall(prefix + 'PredecessorLink'):
-                p_uid = find_val(link, 'PredecessorUID')
-                if p_uid: preds.append(uid_to_id.get(p_uid, p_uid))
-            orig_preds = ", ".join(preds)
-            errores = []
-            if not is_summary and not is_milestone:
-                constraint = int(find_val(task, 'ConstraintType') or '0')
-                if not preds and tid > 1 and constraint <= 1:
-                    prev = [x for x in valid_ids if x < tid]
-                    sug = prev[-1] if prev else "N/A"
-                    errores.append(f"Falta Predecesora (Sugerido ID {sug})")
-            
+        if find_v(task, 'Active') != '0': 
+            tid = int(find_v(task, 'ID') or 0)
+            preds = [uid_to_id.get(find_v(link, 'PredecessorUID'), "") for link in task.findall(prefix + 'PredecessorLink')]
             tareas.append({
-                'ID': tid, 'Name': find_val(task, 'Name'), 'WBS': find_val(task, 'WBS'),
-                'Start_XML': find_val(task, 'Start'), 'Finish_XML': find_val(task, 'Finish'), 
-                'Duration_Days': parse_duration_days(find_val(task, 'Duration')),
-                'IsSummary': is_summary, 'IsMilestone': is_milestone,
-                'OrigPreds': orig_preds, 'Errores': " | ".join(errores) if errores else "OK"
+                'ID': tid, 'Name': find_v(task, 'Name'), 'WBS': find_v(task, 'WBS'),
+                'Start_XML': find_v(task, 'Start'), 'Finish_XML': find_v(task, 'Finish'), 
+                'Duration_Days': parse_dur(find_v(task, 'Duration')),
+                'IsSummary': (find_v(task, 'Summary') == '1'), 'IsMilestone': (find_v(task, 'Milestone') == '1'),
+                'OrigPreds': ", ".join(preds), 'Errores': "OK"
             })
-    return pd.DataFrame(tareas).sort_values('ID')
+    return pd.DataFrame(tareas)
 
 # ==============================================================================
-# ALGORITMO CPM - CON INYECCIÓN IA (NLP + ML MULTIVARIABLE)
+# ALGORITMO CPM - MOTOR ESTOCÁSTICO
 # ==============================================================================
-def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
+def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
     G = nx.DiGraph()
+    horas_jornada = max(1.0, float(h_fin - h_inicio))
+
     for _, row in df.iterrows():
         tid = row['ID']
         G.add_node(tid, data=row.to_dict())
-        new_preds = str(row['OrigPreds']) if pd.notna(row['OrigPreds']) else ""
-        if reparar == "Automática" and "Falta Predecesora" in row['Errores']:
-            match = re.search(r'ID (\d+)', row['Errores'])
-            if match: new_preds = match.group(1)
-        G.nodes[tid]['new_preds'] = new_preds
-        if new_preds.strip():
-            for p in new_preds.split(','):
-                p = p.strip()
-                if p.isdigit() and int(p) != tid: G.add_edge(int(p), tid)
+        preds = str(row['OrigPreds'])
+        if preds.strip():
+            for p in preds.split(','):
+                if p.strip().isdigit() and int(p.strip()) != tid: G.add_edge(int(p.strip()), tid)
                     
-    try: orden = list(nx.topological_sort(G))
-    except nx.NetworkXUnfeasible: orden = df['ID'].tolist() 
-        
-    fecha_fin_calculada = {}
-    res_temp = {}
+    orden = list(nx.topological_sort(G))
+    fecha_fin_calculada, res_temp = {}, {}
 
     for tid in orden:
         row = G.nodes[tid]['data']
-        new_preds = G.nodes[tid]['new_preds']
-        note = "Corregido Auto" if (reparar == "Automática" and "Falta Predecesora" in row['Errores']) else row['Errores']
-            
         start_dt = pd.to_datetime(row['Start_XML']).date() if pd.notna(row['Start_XML']) else None
-        finish_dt = pd.to_datetime(row['Finish_XML']).date() if pd.notna(row['Finish_XML']) else None
         base_dur_float = float(row['Duration_Days'])
         
-        preds_list = [int(p.strip()) for p in new_preds.split(',') if p.strip().isdigit()]
-        max_shift_dias = 0
+        preds_list = [int(p.strip()) for p in str(row['OrigPreds']).split(',') if p.strip().isdigit()]
+        max_shift = 0
         if preds_list and start_dt:
             for p in preds_list:
-                if p in fecha_fin_calculada and fecha_fin_calculada[p] is not None:
-                    fin_base_pred = G.nodes[p]['data']['Finish_XML']
-                    fin_base_pred = pd.to_datetime(fin_base_pred).date() if pd.notna(fin_base_pred) else None
-                    if fin_base_pred:
-                        shift = (fecha_fin_calculada[p] - fin_base_pred).days
-                        if shift > max_shift_dias: max_shift_dias = shift
+                if p in fecha_fin_calculada and fecha_fin_calculada[p]:
+                    fin_base = pd.to_datetime(G.nodes[p]['data']['Finish_XML']).date()
+                    if fin_base: max_shift = max(max_shift, (fecha_fin_calculada[p] - fin_base).days)
                             
         new_start = start_dt
-        if max_shift_dias > 0 and start_dt:
-            new_start = start_dt + timedelta(days=max_shift_dias)
+        if max_shift > 0 and start_dt:
+            new_start = start_dt + timedelta(days=max_shift)
             while not es_habil(new_start, dias_idx, feriados): new_start += timedelta(days=1)
                 
-        new_finish = finish_dt
+        new_finish = None
         new_dur_float = base_dur_float
-        
-        stats_prob = 0.0
-        prob_acumulada = 0.0
-        dias_evaluados = 0
-        stats_mm = 0
-        rain_total = 0.0
         retraso_teorico_dias = 0.0
-        last_rain_date = None
 
-        # ---------------------------------------------------------
-        # INYECCIÓN IA MULTIVARIABLE: NLP + Machine Learning (Termodinámica)
-        # ---------------------------------------------------------
-        ic_base = calcular_ic_ia(row['Name'], use_nlp)
-        tr_horas, impacto_constructivo_ic = calcular_tr_y_ic_dinamico(mm_min, temp_global, hum_global, ic_base, use_ml)
+        # ---- INYECCIÓN IA (Apartado 5.6) ----
+        ic_base = calcular_ic_base_nlp(row['Name'], use_nlp)
+        tr_horas, ic_dinamico = calcular_tr_y_ic_dinamico(mm_min, temp_global, hum_global, ic_base, horas_jornada, use_ml)
         
         if not row['IsSummary'] and not row['IsMilestone'] and new_start:
             work_needed = math.ceil(base_dur_float) if base_dur_float > 0 else 1
-            work_done = 0
-            cursor = new_start
+            work_done = 0; cursor = new_start
             
-            # --- EVALUACIÓN CLIMÁTICA ---
             while work_done < work_needed:
                 if es_habil(cursor, dias_idx, feriados):
                     k = cursor.strftime('%m-%d')
                     if k in clima:
                         h = clima[k]
-                        rain_total += h['mm_promedio']
-                        prob_acumulada += h['probabilidad']
-                        dias_evaluados += 1
-                        
                         if h['probabilidad'] >= prob_min and h['mm_promedio'] >= mm_min:
-                            stats_mm = max(stats_mm, h['mm_promedio'])
-                            retraso_teorico_dias += (h['probabilidad'] * impacto_constructivo_ic)
-                            if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
+                            retraso_teorico_dias += (h['probabilidad'] * ic_dinamico)
                     work_done += 1 
                 cursor += timedelta(days=1)
                 
-            stats_prob = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
-                
-            # --- OPERADOR DE CUANTIZACIÓN (Q) Y UMBRAL OPERATIVO (Ut) ---
-            nota_cuantizacion = ""
+            # ---- APARTADO 5.7: Operador Q y Umbral Ut ----
             total_cuantizado = base_dur_float
             if retraso_teorico_dias > 0:
-                duracion_total_teorica = base_dur_float + retraso_teorico_dias
-                total_cuantizado = math.ceil(duracion_total_teorica * 2) / 2
-                fraccion = total_cuantizado % 1
-                horas_trabajadas = 8.0 if fraccion == 0 else (fraccion * 8.0)
+                dur_teorica = base_dur_float + retraso_teorico_dias
+                total_cuantizado = math.ceil(dur_teorica * 2) / 2 # Q: Redondeo a media jornada
                 
-                if horas_trabajadas < umbral_horas:
-                    total_cuantizado = math.ceil(total_cuantizado)
-                    
-                retraso_cuantizado = total_cuantizado - base_dur_float
-                if retraso_cuantizado != retraso_teorico_dias:
-                    nota_cuantizacion = f" (Q={round(retraso_cuantizado, 2)}d)"
-            else:
-                retraso_cuantizado = 0.0
-
-            if note == "OK" and retraso_cuantizado > 0:
-                note = f"Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
-            elif note != "OK" and retraso_cuantizado > 0:
-                note += f" | Impacto Clima{nota_cuantizacion} [Ic={impacto_constructivo_ic}]"
+                fraccion = total_cuantizado % 1
+                horas_restantes = horas_jornada if fraccion == 0 else (fraccion * horas_jornada)
+                
+                # Ut: Filtro de horas operativas
+                if horas_restantes < umbral_horas:
+                    total_cuantizado = math.ceil(total_cuantizado) # Se pierde el día entero
             
             dias_a_avanzar = math.ceil(total_cuantizado) if total_cuantizado > 0 else 1
-            cursor_fin = new_start
-            dias_avanzados = 1
+            cursor_fin = new_start; dias_avanzados = 1
             while dias_avanzados < dias_a_avanzar:
                 cursor_fin += timedelta(days=1)
-                if es_habil(cursor_fin, dias_idx, feriados):
-                    dias_avanzados += 1
+                if es_habil(cursor_fin, dias_idx, feriados): dias_avanzados += 1
             
             new_finish = cursor_fin
             new_dur_float = total_cuantizado
             
-            is_pushed_by_pred = (new_start > start_dt) if start_dt else False
-            if not is_pushed_by_pred and retraso_cuantizado == 0 and finish_dt:
-                new_finish = finish_dt
-                new_dur_float = base_dur_float
-            
-        elif row['IsMilestone']:
-            new_dur_float = 0
-            stats_prob = 0
-            if new_start: new_finish = new_start
+        elif row['IsMilestone'] and new_start: new_finish = new_start
                 
         fecha_fin_calculada[tid] = new_finish
-        G.nodes[tid]['ES'] = new_start
         G.nodes[tid]['EF'] = new_finish
-        G.nodes[tid]['dur_ajustada'] = new_dur_float
-
+        
+        impacto_final = new_dur_float - base_dur_float
         res_temp[tid] = {
-            'ID': tid, 'WBS': row['WBS'], 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
-            'Duración Base': redondear_duracion(base_dur_float), 'Inicio Base': start_dt, 'Fin Base': finish_dt,
-            'Duración Nueva': redondear_duracion(new_dur_float), 'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish,
-            'Tr (Secado/Horas)': tr_horas, 'Ic_Estimado': impacto_constructivo_ic,
-            'Pred. Orig': row['OrigPreds'], 'Pred. Nueva': new_preds,
-            'Prob. Lluvia': f"{stats_prob:.0%}" if stats_prob > 0 else "-", 'mm Lluvia Max': round(stats_mm, 1) if stats_mm > 0 else "-",
-            'Lluvia Total Acum (mm)': round(rain_total, 1), 'Fecha Última Lluvia': last_rain_date if last_rain_date else "-",
-            'Días Impacto': redondear_duracion(new_dur_float) - redondear_duracion(base_dur_float), 'Estado': note,
-            'IsRain': ((redondear_duracion(new_dur_float) - redondear_duracion(base_dur_float)) > 0), 'IsLogic': (new_preds != row['OrigPreds']) 
+            'ID': tid, 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
+            'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish, 'Tr (Secado/Horas)': tr_horas, 'Ic_Base': ic_base,
+            'Días Impacto': impacto_final, 'IsRain': impacto_final > 0
         }
 
-    valid_efs = [data['EF'] for n, data in G.nodes(data=True) if data.get('EF') is not None]
-    max_project_ef = max(valid_efs) if valid_efs else None
-
-    # CALCULO DE HOLGURAS (Backward Pass)
-    for tid in reversed(orden):
-        node = G.nodes[tid]
-        if node.get('EF') is None: continue
-
-        succs = list(G.successors(tid))
-        if not succs:
-            node['LF'] = max_project_ef
-        else:
-            valid_ls = [G.nodes[s].get('LS') for s in succs if G.nodes[s].get('LS') is not None]
-            if valid_ls:
-                min_succ_ls = min(valid_ls)
-                cursor = min_succ_ls - timedelta(days=1)
-                while not es_habil(cursor, dias_idx, feriados):
-                    cursor -= timedelta(days=1)
-                node['LF'] = cursor
-            else:
-                node['LF'] = max_project_ef
-
-        dur = math.ceil(node.get('dur_ajustada', 0))
-        cursor = node['LF']
-        if dur > 1:
-            days_stepped = 1
-            while days_stepped < dur:
-                cursor -= timedelta(days=1)
-                if es_habil(cursor, dias_idx, feriados): days_stepped += 1
-        node['LS'] = cursor
-
-        ef = node['EF']
-        lf = node['LF']
-        tf_days = 0
-        if ef and lf and lf >= ef:
-            c = ef
-            while c < lf:
-                c += timedelta(days=1)
-                if es_habil(c, dias_idx, feriados): tf_days += 1
-        elif ef and lf and lf < ef:
-            c = lf
-            while c < ef:
-                c += timedelta(days=1)
-                if es_habil(c, dias_idx, feriados): tf_days -= 1
-
-        node['TF'] = tf_days
-        node['is_critical'] = (tf_days <= 0)
-        
-        res_temp[tid]['Holgura (Días)'] = tf_days
-        res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
-        impact = res_temp[tid]['Días Impacto']
-        res_temp[tid]['Nivel Riesgo'] = "Crítico (Mutada)" if (tf_days <= 0 and impact > 0) else ("Alto" if impact > 2 else "Normal")
-
-    df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
-    df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
-    df_res['Tr (Secado/Horas)'] = df_res['Tr (Secado/Horas)'].astype(object)
-
-    for i in df_res[df_res['IsSummary'] == True].index:
-        wbs_val = str(df_res.at[i, 'WBS'])
-        wbs_prefix = wbs_val + '.'
-        children = df_res[(df_res['WBS'].astype(str).str.startswith(wbs_prefix)) & (df_res['IsSummary'] == False)]
-        if children.empty and (df_res.at[i, 'ID'] == 0 or wbs_val == '0' or wbs_val == 'None'):
-            children = df_res[df_res['IsSummary'] == False]
-            
-        if not children.empty:
-            min_start = children['Inicio Nuevo'].dropna().min()
-            max_finish = children['Fin Nuevo'].dropna().max()
-            if pd.notna(min_start): df_res.at[i, 'Inicio Nuevo'] = min_start
-            if pd.notna(max_finish): df_res.at[i, 'Fin Nuevo'] = max_finish
-            
-            if pd.notna(min_start) and pd.notna(max_finish) and max_finish >= min_start:
-                c_dias = 0
-                cursor = min_start
-                while cursor <= max_finish:
-                    if es_habil(cursor, dias_idx, feriados): c_dias += 1
-                    cursor += timedelta(days=1)
-                
-                df_res.at[i, 'Duración Nueva'] = c_dias
-                impacto_resumen = c_dias - df_res.at[i, 'Duración Base']
-                df_res.at[i, 'Días Impacto'] = impacto_resumen
-                df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Normal"
-            else:
-                df_res.at[i, 'Días Impacto'] = 0; df_res.at[i, 'Nivel Riesgo'] = "N/A"
-                
-            df_res.at[i, 'Prob. Lluvia'] = "-"; df_res.at[i, 'mm Lluvia Max'] = "-"
-            df_res.at[i, 'Holgura (Días)'] = "-"; df_res.at[i, 'Ruta Crítica'] = "-"
-            df_res.at[i, 'Tr (Secado/Horas)'] = "-"
-            
-    df_res['ID'] = pd.to_numeric(df_res['ID'], errors='coerce')
-    return df_res.sort_values('ID').reset_index(drop=True)
+    df_res = pd.DataFrame(list(res_temp.values()))
+    return df_res
 
 # ==============================================================================
-# INTERFAZ PRINCIPAL Y BARRA LATERAL (SIDEBAR IA)
+# SIDEBAR Y FRONTEND
 # ==============================================================================
 with st.sidebar:
     st.header("⚙️ Configuración Logística")
-    st.subheader("1. Horario de Obra")
     h_inicio, h_fin = st.slider("Jornada", 0, 23, (8, 17))
-    st.subheader("2. Días Laborables")
-    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie"])
-    mapa_d = {"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}
-    dias_idx = [mapa_d[d] for d in dias_sel]
+    dias_sel = st.multiselect("Días Laborables", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie"])
+    dias_idx = [{"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}[d] for d in dias_sel]
     
     st.markdown("---")
-    st.header("🧠 Capa Cognitiva e Inteligencia Artificial")
-    activar_nlp = st.toggle("Procesamiento de Lenguaje Natural (Clasificación Semántica)", value=True)
-    activar_ml = st.toggle("Motor Random Forest (Tiempo de Recuperación Tr)", value=True)
-    activar_ag = st.toggle("Agente Prescriptivo (Mitigación Topológica)", value=True)
+    st.header("🧠 Capa Cognitiva (45% IA)")
+    activar_nlp = st.toggle("Pilar 1: NLP WBS (Extract Semantic)", value=True)
+    activar_ml = st.toggle("Pilar 2: PIML (Tiempo Tr & Ic)", value=True)
+    activar_ag = st.toggle("Pilar 3: Agente Heurístico", value=True)
     
-    st.markdown("---")
-    st.subheader("🌡️ Termodinámica (Variables de Inferencia Continua)")
-    temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, 30.0, 0.5, help="Variable predictora para el cálculo de evaporación en el Random Forest.")
-    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0, help="Déficit de presión de vapor para modelar el secado del estrato geotécnico.")
-
-# ==============================================================================
-# GEOLOCALIZACIÓN Y MAPA
-# ==============================================================================
-def actualizar_desde_dropdown():
-    coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
-    st.session_state['lat_actual'] = coords[0]; st.session_state['lon_actual'] = coords[1]
-    st.session_state['ubicacion_nombre'] = st.session_state.combo_ubicacion
-
-st.selectbox("📍 Buscar Ubicación de Proyecto:", sorted(list(COORDENADAS_RD.keys())), key='combo_ubicacion', on_change=actualizar_desde_dropdown)
-st.markdown(f"**Coordenadas de Análisis:** `Latitud: {st.session_state['lat_actual']:.4f}, Longitud: {st.session_state['lon_actual']:.4f}`")
-
-m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_actual']], zoom_start=12)
-m.add_child(folium.LatLngPopup()) 
-folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
-map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
-
-if map_data and map_data.get("last_clicked"):
-    lat_c = map_data["last_clicked"]["lat"]
-    lon_c = map_data["last_clicked"]["lng"]
-    if round(lat_c, 4) != round(st.session_state['lat_actual'], 4) or round(lon_c, 4) != round(st.session_state['lon_actual'], 4):
-        st.session_state['lat_actual'] = lat_c
-        st.session_state['lon_actual'] = lon_c
-        st.session_state['ubicacion_nombre'] = f"Pin Manual: {lat_c:.4f}, {lon_c:.4f}"
-        st.rerun()
+    st.subheader("🌡️ Termodinámica (Variables Clima)")
+    temp_global = st.slider("Temperatura (°C)", 15.0, 45.0, 30.0, 0.5)
+    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0)
 
 st.markdown("---")
-
-# ==============================================================================
-# GRÁFICA CLIMÁTICA Y RADAR
-# ==============================================================================
-st.subheader(f"🌦️ Comportamiento Climático Histórico ({st.session_state['ubicacion_nombre']})")
-with st.spinner("Accediendo al caché geoespacial o descargando micro-clima..."):
-    df_g, clima, orden = obtener_clima_horario_laboral(st.session_state['lat_actual'], st.session_state['lon_actual'], h_inicio, h_fin)
-    if df_g is not None:
-        fig_clima = px.bar(df_g, x='Mes', y='mm', text='mm', 
-                           color_discrete_sequence=['#AF1E2D'],
-                           hover_data={'prob_lluvia': ':.1%'},
-                           labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-        fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-        fig_clima.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
-        st.plotly_chart(fig_clima, use_container_width=True)
-
-st.markdown("---")
-st.subheader(f"📡 Radar Satelital en Tiempo Real ({st.session_state['ubicacion_nombre']})")
-windy_html = f"""
-<iframe width="100%" height="450" 
-    src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=9&overlay=rain&product=ecmwf&level=surface&lat={st.session_state['lat_actual']}&lon={st.session_state['lon_actual']}" 
-    frameborder="0" style="border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-</iframe>
-"""
-components.html(windy_html, height=450)
-st.markdown("---")
-
-# ==============================================================================
-# CARGA DE XML Y EJECUCIÓN DEL MOTOR
-# ==============================================================================
-uploaded = st.file_uploader("📂 Paso Final: Cargar Cronograma XML (MS Project)", type=['xml'])
-
-if uploaded is not None and st.session_state.get('last_uploaded') != uploaded.name:
-    st.session_state['simulacion_activa'] = False
-    st.session_state['resultados_finales'] = None
-    st.session_state['last_uploaded'] = uploaded.name
+uploaded = st.file_uploader("📂 Cargar Cronograma XML (MS Project)", type=['xml'])
 
 if uploaded:
     uploaded.seek(0)
     df_aud = auditar_xml(uploaded)
-    errores = df_aud[(df_aud['Errores'] != 'OK')]
+    st.success("✅ XML Cargado.")
+
+    st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
+    c_p, c_m, c_u = st.columns(3)
+    prob = c_p.slider("Probabilidad Lluvia (%) - Pr", 0, 100, 65) / 100.0
+    mm = c_m.slider("Intensidad Crítica (mm/día)", 0.0, 50.0, 5.0, 0.5)
+    umbral_horas = c_u.slider("Umbral Operativo (Ut) horas", 1.0, 8.0, 3.0, 0.5)
     
-    if not errores.empty:
-        st.warning(f"⚠️ {len(errores)} Tareas con problemas lógicos topológicos.")
-        decision = st.radio("Acción de Auditoría:", ["Reparar Automáticamente (Recomendado)", "Descargar Errores (Excel)", "Ignorar"], horizontal=True)
-        if decision == "Descargar Errores (Excel)":
-            b = io.BytesIO()
-            with pd.ExcelWriter(b) as w: errores.to_excel(w, index=False)
-            st.download_button("Descargar Archivo de Errores", b.getvalue(), "Errores.xlsx")
-            st.session_state['audit_decision'] = None
-        elif decision == "Reparar Automáticamente (Recomendado)": st.session_state['audit_decision'] = "Automática"
-        else: st.session_state['audit_decision'] = "Ignorar"
-    else:
-        st.success("✅ Estructura Lógica Perfecta")
-        st.session_state['audit_decision'] = "OK"
-
-    if st.session_state['audit_decision']:
-        st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
-        
-        c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, 65, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
-        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, 5.0, 0.5, help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, 3.0, 0.5, help="Umbral Operativo (Ut). Si la fracción de horas operables es menor a este umbral, se pierde la jornada completa protegiendo el OPEX.")
-        
-        if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
-            st.toast('Iniciando simulación topológica...', icon='🚀')
+    if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary"):
+        _, clima, _ = obtener_clima_horario_laboral(st.session_state['lat_actual'], st.session_state['lon_actual'], h_inicio, h_fin)
+        with st.spinner("Procesando Motor Estocástico y Modelos Termodinámicos..."):
+            final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
             
-            with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
-                st.session_state['resultados_finales'] = final
-                st.session_state['simulacion_activa'] = True
-                st.toast('¡Simulación completada con éxito!', icon='✅')
-                
-        if st.session_state['simulacion_activa'] and st.session_state['resultados_finales'] is not None:
-            final = st.session_state['resultados_finales']
-            act_impactadas = final[final['IsRain'] == True]
-            count_impact = len(act_impactadas)
+            st.markdown("### 📊 Resultados y Auditoría")
+            retraso = final['Días Impacto'].sum()
+            st.metric("Total Días Inyectados (EVB)", round(retraso, 2))
             
-            tareas_evaluables = final[final['IsSummary'] == False]
-            try:
-                fin_base_max = pd.to_datetime(tareas_evaluables['Fin Base'].dropna()).max()
-                fin_nuevo_max = pd.to_datetime(tareas_evaluables['Fin Nuevo'].dropna()).max()
-                retraso_total_proyecto = (fin_nuevo_max - fin_base_max).days if pd.notna(fin_nuevo_max) and pd.notna(fin_base_max) else 0
-            except: retraso_total_proyecto = 0
-            
-            st.markdown("### 📊 Panel de Resultados Gerenciales")
-            st.markdown(f"""
-            <div class="kpi-container">
-                <div class="kpi-box">
-                    <div class="kpi-title">Actividades Afectadas</div>
-                    <div class="kpi-value">{count_impact} <span>/ {len(tareas_evaluables)} totales</span></div>
-                    <div class="kpi-subtitle">Tareas de campo que sufrieron inyección de EVB.</div>
-                </div>
-                <div class="kpi-box">
-                    <div class="kpi-title">Retraso del Proyecto</div>
-                    <div class="kpi-value {'danger' if retraso_total_proyecto > 0 else ''}">+{max(0, retraso_total_proyecto)} <span>Días Calendario</span></div>
-                    <div class="kpi-subtitle">Desplazamiento final tras recalcular Ruta Crítica.</div>
-                </div>
-                <div class="kpi-box">
-                    <div class="kpi-title">Fecha Final Proyectada</div>
-                    <div class="kpi-value" style="font-size: 2rem;">{fin_nuevo_max.strftime("%d %b %Y") if pd.notna(fin_nuevo_max) else 'N/A'}</div>
-                    <div class="kpi-subtitle">Línea Base original: {fin_base_max.strftime('%d %b %Y') if pd.notna(fin_base_max) else 'N/A'}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # --- AGENTE PRESCRIPTIVO ---
             if activar_ag:
-                st.markdown("### 🤖 Agente Prescriptivo de Mitigación (IA)")
-                consejos = agente_prescriptivo_mitigacion(final, retraso_total_proyecto)
-                for consejo in consejos:
-                    st.markdown(f'<div class="ia-card">{consejo}</div>', unsafe_allow_html=True)
-            
-            act_reales = final[(final['IsSummary'] == False) & (final['IsMilestone'] == False)]
-            
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva S (Interactiva)", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
-            
-            with tab1:
-                st.markdown("#### Diagrama de Gantt Ajustado")
-                df_gantt = act_reales.copy()
-                df_gantt['Inicio Nuevo'] = pd.to_datetime(df_gantt['Inicio Nuevo'])
-                df_gantt['Fin Nuevo'] = pd.to_datetime(df_gantt['Fin Nuevo'])
-                df_gantt = df_gantt.sort_values('Inicio Nuevo')
+                st.markdown("### 🤖 Agente Prescriptivo (Mitigación Topológica)")
+                consejos = agente_prescriptivo_mitigacion(final, retraso)
+                for c in consejos: st.markdown(f'<div class="ia-card">{c}</div>', unsafe_allow_html=True)
                 
-                if not df_gantt.empty:
-                    fig_gantt = px.timeline(df_gantt, x_start="Inicio Nuevo", x_end="Fin Nuevo", y="Actividad",
-                                            color="Días Impacto", color_continuous_scale=px.colors.sequential.Reds,
-                                            hover_data=["Duración Nueva", "Holgura (Días)", "Ruta Crítica"])
-                    fig_gantt.update_yaxes(autorange="reversed")
-                    fig_gantt.update_layout(height=600, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig_gantt, use_container_width=True)
-                else:
-                    st.info("No hay datos para generar el Gantt.")
-            
-            with tab2:
-                df_base = act_reales[['Fin Base']].copy().rename(columns={'Fin Base':'Fecha'}).dropna()
-                df_base['Tipo'] = 'Base'
-                df_new = act_reales[['Fin Nuevo']].copy().rename(columns={'Fin Nuevo':'Fecha'}).dropna()
-                df_new['Tipo'] = 'Sugerido'
-                df_s = pd.concat([df_base, df_new])
-                df_s['Count'] = 1
-                df_s['Fecha'] = pd.to_datetime(df_s['Fecha'])
-                df_s = df_s.sort_values('Fecha')
-                df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
-                
-                fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
-                                color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'},
-                                markers=True, line_shape='spline')
-                fig_s.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', hovermode='x unified', xaxis_title="Fechas de Finalización", yaxis_title="Tareas Completadas",
-                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                fig_s.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#E2E8F0')
-                fig_s.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#E2E8F0')
-                st.plotly_chart(fig_s, use_container_width=True)
-                
-            with tab3:
-                df_hist = final[final['IsRain']==True].copy()
-                if not df_hist.empty:
-                    df_hist['Mes'] = pd.to_datetime(df_hist['Inicio Nuevo']).dt.month_name()
-                    counts_mes = df_hist['Mes'].value_counts().reset_index()
-                    counts_mes.columns = ['Mes', 'Qty']
-                    
-                    fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#3B82F6'])
-                    
-                    fig_riesgo.update_traces(textposition='outside')
-                    fig_riesgo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
-                    fig_riesgo.update_yaxes(showgrid=True, gridcolor='#E2E8F0')
-                    st.plotly_chart(fig_riesgo, use_container_width=True)
-                else: st.info("Ninguna actividad superó los umbrales de lluvia seleccionados.")
-                
-            with tab4:
-                df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
-                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']])
-                gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
-                gb.configure_default_column(resizable=True, filterable=True, sortable=True)
-                gb.configure_column("Actividad", width=400)
-                gb.configure_column("Estado", width=350)
-                gridOptions = gb.build()
-                
-                st.markdown("*(Puedes dar clic en los encabezados para filtrar o mover las columnas)*")
-                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']], 
-                       gridOptions=gridOptions, 
-                       theme='alpine',
-                       columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                       update_mode=GridUpdateMode.NO_UPDATE)
-
-            b_out = io.BytesIO()
-            p_name = st.session_state.get('project_name', 'Proyecto')
-            safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
-            
-            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
-                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
-                                 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
-                                 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
-            
-            with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
-                final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
-                wb = w.book
-                ws = w.sheets['Sugerencias']
-                
-                formato_project = 'dd/mm/yyyy'
-                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
-                fmt_norm = wb.add_format({'border':1})
-                fmt_date = wb.add_format({'num_format': formato_project, 'border':1})
-                fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
-                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': formato_project, 'border':1, 'font_color': 'black'})
-                fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
-                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': formato_project, 'border':1, 'font_color': 'white'})
-                fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
-                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': formato_project, 'border':1})
-                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
-                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': formato_project, 'border':1})
-
-                last_col_idx = len(columnas_exportar) - 1 
-                ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
-                
-                date_cols = [4, 5, 7, 8]
-                rain_date_col = 15
-                
-                for r, row in final.iterrows():
-                    impacto = row['Días Impacto']
-                    is_logic = row['IsLogic']
-                    is_summary = row['IsSummary']
-                    
-                    row_fmt = fmt_norm
-                    row_date_fmt = fmt_date
-                    
-                    if is_summary: row_fmt = fmt_summary; row_date_fmt = fmt_summary_date
-                    elif impacto > 2: row_fmt = fmt_high; row_date_fmt = fmt_high_date
-                    elif impacto > 0: row_fmt = fmt_med; row_date_fmt = fmt_med_date
-                    elif is_logic: row_fmt = fmt_logic; row_date_fmt = fmt_logic_date
-                        
-                    for c, col_name in enumerate(columnas_exportar):
-                        val = row.get(col_name, "")
-                        if pd.isna(val): val = ""
-                        
-                        cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
-                        
-                        if (c in date_cols or c == rain_date_col) and isinstance(val, (datetime, date, pd.Timestamp)):
-                            ws.write_datetime(r+2, c, val, cell_fmt)
-                        else:
-                            ws.write(r+2, c, val, cell_fmt)
-                
-                ws.set_column('C:C', 40); ws.set_column('R:R', 35)
-
-                ws_data = wb.add_worksheet('Datos_Graficos')
-                ws_data.write('A1', 'Fecha'); ws_data.write('B1', 'Acumulado Base'); ws_data.write('C1', 'Acumulado Sugerido')
-                
-                df_s_excel = df_s.pivot_table(index='Fecha', columns='Tipo', values='Acumulado', aggfunc='max').ffill().fillna(0).reset_index()
-                if 'Base' not in df_s_excel.columns: df_s_excel['Base'] = 0
-                if 'Sugerido' not in df_s_excel.columns: df_s_excel['Sugerido'] = 0
-                
-                if not df_s_excel.empty:
-                    for i, r in df_s_excel.iterrows():
-                        date_val = r['Fecha']
-                        if isinstance(date_val, pd.Timestamp): date_val = date_val.date()
-                        ws_data.write(i+1, 0, date_val.strftime('%d/%m/%Y'))
-                        ws_data.write(i+1, 1, r['Base'])
-                        ws_data.write(i+1, 2, r['Sugerido'])
-                
-                ws_data.write('E1', 'Mes'); ws_data.write('F1', 'Cantidad')
-                if not df_hist.empty:
-                    counts = df_hist['Mes'].value_counts().reset_index()
-                    counts.columns = ['Mes', 'Qty']
-                    for i, r in counts.iterrows():
-                        ws_data.write(i+1, 4, r['Mes'])
-                        ws_data.write(i+1, 5, r['Qty'])
-
-                chart_sheet1 = wb.add_chartsheet('Grafico_Curva_S')
-                chart1 = wb.add_chart({'type': 'line'})
-                max_row = len(df_s_excel)
-                if max_row > 0:
-                    chart1.add_series({'name': 'Plan Base', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 1, max_row, 1], 'line': {'color': 'gray'}})
-                    chart1.add_series({'name': 'Con Lluvia', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 2, max_row, 2], 'line': {'color': 'blue'}})
-                chart1.set_title({'name': 'Curva S de Avance (Solo Tareas de Trabajo)'})
-                chart_sheet1.set_chart(chart1)
-
-                if not df_hist.empty:
-                    chart_sheet2 = wb.add_chartsheet('Grafico_Barras')
-                    chart2 = wb.add_chart({'type': 'column'})
-                    max_row_h = len(counts)
-                    chart2.add_series({'name': 'Actividades Afectadas', 'categories': ['Datos_Graficos', 1, 4, max_row_h, 4], 'values': ['Datos_Graficos', 1, 5, max_row_h, 5], 'fill': {'color': '#AF1E2D'}})
-                    chart2.set_title({'name': 'Riesgo por Mes'})
-                    chart_sheet2.set_chart(chart2)
-
-            st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
+            st.dataframe(final[['Actividad', 'Tr (Secado/Horas)', 'Ic_Base', 'Días Impacto']])
