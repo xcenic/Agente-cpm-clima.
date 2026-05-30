@@ -138,31 +138,53 @@ def es_habil(fecha, dias_ok_idx, feriados):
 @st.cache_data(ttl=timedelta(days=7), show_spinner=False)
 def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
     lat_r = round(lat, 2); lon_r = round(lon, 2)
-    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat_r}&longitude={lon_r}&start_date=2014-01-01&end_date=2023-12-31&hourly=precipitation&timezone=auto"
+    # API Actualizada: Ahora extrae precipitation, temperature_2m y relative_humidity_2m
+    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat_r}&longitude={lon_r}&start_date=2014-01-01&end_date=2023-12-31&hourly=precipitation,temperature_2m,relative_humidity_2m&timezone=auto"
     try:
         r = requests.get(url)
         data = r.json()
-        df = pd.DataFrame({'time': pd.to_datetime(data['hourly']['time']), 'mm': data['hourly']['precipitation']})
+        df = pd.DataFrame({
+            'time': pd.to_datetime(data['hourly']['time']), 
+            'mm': data['hourly']['precipitation'],
+            'temp': data['hourly']['temperature_2m'],
+            'hum': data['hourly']['relative_humidity_2m']
+        })
         df['hora'] = df['time'].dt.hour
         df_laboral = df[(df['hora'] >= hora_inicio) & (df['hora'] <= hora_fin)].copy()
         df_laboral['fecha_date'] = df_laboral['time'].dt.date
-        df_daily_sum = df_laboral.groupby('fecha_date')['mm'].sum().reset_index()
-        df_daily_sum['dia_mes'] = pd.to_datetime(df_daily_sum['fecha_date']).dt.strftime('%m-%d')
-        df_daily_sum['fecha_full'] = pd.to_datetime(df_daily_sum['fecha_date'])
-        df_daily_sum['lluvio'] = (df_daily_sum['mm'] > 0.5).astype(int)
         
-        clima_map = df_daily_sum.groupby('dia_mes').agg(
-            probabilidad=('mm', lambda x: (x > 0.5).mean()), 
+        # Agrupación diaria: sumamos lluvia, promediamos temperatura y humedad
+        df_daily = df_laboral.groupby('fecha_date').agg(
+            mm=('mm', 'sum'),
+            temp=('temp', 'mean'),
+            hum=('hum', 'mean')
+        ).reset_index()
+        
+        df_daily['dia_mes'] = pd.to_datetime(df_daily['fecha_date']).dt.strftime('%m-%d')
+        df_daily['fecha_full'] = pd.to_datetime(df_daily['fecha_date'])
+        df_daily['lluvio'] = (df_daily['mm'] > 0.5).astype(int)
+        
+        # Mapa para simulación CPM
+        clima_map = df_daily.groupby('dia_mes').agg(
+            probabilidad=('lluvio', 'mean'), 
             mm_promedio=('mm', 'mean'),
-            ultima_fecha_lluvia=('fecha_full', lambda x: x[df_daily_sum.loc[x.index, 'mm'] > 0.5].max() if (df_daily_sum.loc[x.index, 'mm'] > 0.5).any() else None)
+            ultima_fecha_lluvia=('fecha_full', lambda x: x[df_daily.loc[x.index, 'mm'] > 0.5].max() if (df_daily.loc[x.index, 'mm'] > 0.5).any() else None)
         ).to_dict('index')
         
-        df_daily_sum['mes_num'] = pd.to_datetime(df_daily_sum['fecha_date']).dt.month
+        # Agrupación Mensual para los Gráficos de Interfaz
+        df_daily['mes_num'] = pd.to_datetime(df_daily['fecha_date']).dt.month
         mapa_meses = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
-        df_daily_sum['Mes'] = df_daily_sum['mes_num'].map(mapa_meses)
-        df_grafico = df_daily_sum.groupby(['mes_num', 'Mes']).agg(mm=('mm', 'mean'), prob_lluvia=('lluvio', 'mean')).reset_index()
+        df_daily['Mes'] = df_daily['mes_num'].map(mapa_meses)
+        df_grafico = df_daily.groupby(['mes_num', 'Mes']).agg(
+            mm=('mm', 'mean'), 
+            prob_lluvia=('lluvio', 'mean'),
+            temp=('temp', 'mean'),
+            hum=('hum', 'mean')
+        ).reset_index()
+        
         return df_grafico, clima_map, list(mapa_meses.values())
-    except: return None, None, None
+    except Exception as e: 
+        return None, None, None
 
 def redondear_duracion(val): return round(float(val), 2)
 
@@ -444,7 +466,7 @@ st.markdown("""
         .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap');
         html, body, [class*="css"]  { font-family: 'Inter', sans-serif !important; }
-        .stApp { background-color: #F8FAFC; } /* Fondo ligeramente más claro */
+        .stApp { background-color: #F8FAFC; } 
         #MainMenu {visibility: hidden;} footer {visibility: hidden;}
         [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
         
@@ -463,6 +485,7 @@ st.markdown("""
             width: 100% !important;
             box-shadow: none !important;
             transition: background-color 0.2s ease !important;
+            margin-top: 20px;
         }
         [data-testid="stSidebar"] .stDownloadButton > button:hover {
             background-color: #475569 !important;
@@ -584,25 +607,6 @@ with col_banner:
 # ==============================================================================
 # GEOLOCALIZACIÓN Y MAPA
 # ==============================================================================
-COORDENADAS_RD = {
-    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
-    "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
-    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525),
-    "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029),
-    "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565),
-    "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515),
-    "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Romana - La Romana (Cabecera)": (18.4273, -68.9728),
-    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511),
-    "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450),
-    "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431),
-    "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884),
-    "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112),
-    "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299),
-    "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468),
-    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457),
-    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
-}
-
 def actualizar_desde_dropdown():
     coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
     st.session_state['lat_actual'] = coords[0]; st.session_state['lon_actual'] = coords[1]
@@ -629,16 +633,35 @@ st.markdown("---")
 # GRÁFICA CLIMÁTICA Y RADAR
 # ==============================================================================
 st.subheader(f"🌦️ Comportamiento Climático Histórico ({st.session_state['ubicacion_nombre']})")
-with st.spinner("Accediendo al caché geoespacial o descargando micro-clima..."):
+with st.spinner("Accediendo al caché geoespacial o descargando micro-clima (Lluvia, Temp, Humedad)..."):
     df_g, clima, orden = obtener_clima_horario_laboral(st.session_state['lat_actual'], st.session_state['lon_actual'], h_inicio, h_fin)
     if df_g is not None:
-        fig_clima = px.bar(df_g, x='Mes', y='mm', text='mm', 
-                           color_discrete_sequence=['#38BDF8'], # Modern Blue
-                           hover_data={'prob_lluvia': ':.1%'},
-                           labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-        fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-        fig_clima.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
-        st.plotly_chart(fig_clima, use_container_width=True)
+        tab_precip, tab_temp, tab_hum = st.tabs(["🌧️ Lluvia (mm)", "🌡️ Temperatura (°C)", "💧 Humedad (%)"])
+        
+        with tab_precip:
+            fig_clima = px.bar(df_g, x='Mes', y='mm', text='mm', 
+                               color='mm', color_continuous_scale=px.colors.sequential.Blues,
+                               hover_data={'prob_lluvia': ':.1%'},
+                               labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
+            fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
+            fig_clima.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
+            st.plotly_chart(fig_clima, use_container_width=True)
+            
+        with tab_temp:
+            fig_temp = px.bar(df_g, x='Mes', y='temp', text='temp',
+                              color='temp', color_continuous_scale=px.colors.sequential.Oranges,
+                              labels={'temp': 'Temp Promedio (°C)'})
+            fig_temp.update_traces(texttemplate='%{text:.1f}°', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
+            fig_temp.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
+            st.plotly_chart(fig_temp, use_container_width=True)
+            
+        with tab_hum:
+            fig_hum = px.bar(df_g, x='Mes', y='hum', text='hum',
+                             color='hum', color_continuous_scale=px.colors.sequential.Teal,
+                             labels={'hum': 'Humedad Relativa Promedio (%)'})
+            fig_hum.update_traces(texttemplate='%{text:.1f}%', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
+            fig_hum.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0', range=[0, 100]), xaxis_title=None, height=400)
+            st.plotly_chart(fig_hum, use_container_width=True)
 
 st.markdown("---")
 st.subheader(f"📡 Radar Satelital en Tiempo Real ({st.session_state['ubicacion_nombre']})")
@@ -750,7 +773,7 @@ if uploaded:
                 
                 if not df_gantt.empty:
                     fig_gantt = px.timeline(df_gantt, x_start="Inicio Nuevo", x_end="Fin Nuevo", y="Actividad",
-                                            color="Días Impacto", color_continuous_scale=px.colors.sequential.Tealgrn, # Escala moderna
+                                            color="Días Impacto", color_continuous_scale=px.colors.sequential.Tealgrn,
                                             hover_data=["Duración Nueva", "Holgura (Días)", "Ruta Crítica"])
                     fig_gantt.update_yaxes(autorange="reversed")
                     fig_gantt.update_layout(height=600, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', template='plotly_white')
@@ -769,7 +792,6 @@ if uploaded:
                 df_s = df_s.sort_values('Fecha')
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
-                # Curva S Modernizada (Con relleno de área)
                 fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
                                 color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'},
                                 markers=True, line_shape='spline', template='plotly_white')
