@@ -24,6 +24,28 @@ except ImportError:
     st.stop()
 
 # ==============================================================================
+# DICCIONARIO MAESTRO DE COORDENADAS (GLOBAL)
+# ==============================================================================
+COORDENADAS_RD = {
+    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
+    "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
+    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525),
+    "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029),
+    "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565),
+    "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515),
+    "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Romana - La Romana (Cabecera)": (18.4273, -68.9728),
+    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511),
+    "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450),
+    "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431),
+    "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884),
+    "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112),
+    "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299),
+    "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468),
+    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457),
+    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
+}
+
+# ==============================================================================
 # MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING
 # ==============================================================================
 try:
@@ -104,7 +126,7 @@ def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     return sugerencias
 
 # ==============================================================================
-# FUNCIONES DE SOPORTE Y DATOS
+# FUNCIONES DE SOPORTE Y DATOS CLIMÁTICOS
 # ==============================================================================
 def calcular_pascua(year):
     a = year % 19; b = year // 100; c = year % 100; d = b // 4; e = b % 4; f = (b + 8) // 25
@@ -138,7 +160,6 @@ def es_habil(fecha, dias_ok_idx, feriados):
 @st.cache_data(ttl=timedelta(days=7), show_spinner=False)
 def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
     lat_r = round(lat, 2); lon_r = round(lon, 2)
-    # API Actualizada: Ahora extrae precipitation, temperature_2m y relative_humidity_2m
     url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat_r}&longitude={lon_r}&start_date=2014-01-01&end_date=2023-12-31&hourly=precipitation,temperature_2m,relative_humidity_2m&timezone=auto"
     try:
         r = requests.get(url)
@@ -153,7 +174,6 @@ def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
         df_laboral = df[(df['hora'] >= hora_inicio) & (df['hora'] <= hora_fin)].copy()
         df_laboral['fecha_date'] = df_laboral['time'].dt.date
         
-        # Agrupación diaria: sumamos lluvia, promediamos temperatura y humedad
         df_daily = df_laboral.groupby('fecha_date').agg(
             mm=('mm', 'sum'),
             temp=('temp', 'mean'),
@@ -164,14 +184,12 @@ def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
         df_daily['fecha_full'] = pd.to_datetime(df_daily['fecha_date'])
         df_daily['lluvio'] = (df_daily['mm'] > 0.5).astype(int)
         
-        # Mapa para simulación CPM
         clima_map = df_daily.groupby('dia_mes').agg(
             probabilidad=('lluvio', 'mean'), 
             mm_promedio=('mm', 'mean'),
             ultima_fecha_lluvia=('fecha_full', lambda x: x[df_daily.loc[x.index, 'mm'] > 0.5].max() if (df_daily.loc[x.index, 'mm'] > 0.5).any() else None)
         ).to_dict('index')
         
-        # Agrupación Mensual para los Gráficos de Interfaz
         df_daily['mes_num'] = pd.to_datetime(df_daily['fecha_date']).dt.month
         mapa_meses = {1:'Ene', 2:'Feb', 3:'Mar', 4:'Abr', 5:'May', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Sep', 10:'Oct', 11:'Nov', 12:'Dic'}
         df_daily['Mes'] = df_daily['mes_num'].map(mapa_meses)
@@ -838,98 +856,4 @@ if uploaded:
             safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
             
             columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
-                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
-                                 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
-                                 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
-            
-            with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
-                final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
-                wb = w.book
-                ws = w.sheets['Sugerencias']
-                
-                formato_project = 'dd/mm/yyyy'
-                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
-                fmt_norm = wb.add_format({'border':1})
-                fmt_date = wb.add_format({'num_format': formato_project, 'border':1})
-                fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
-                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': formato_project, 'border':1, 'font_color': 'black'})
-                fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
-                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': formato_project, 'border':1, 'font_color': 'white'})
-                fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
-                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': formato_project, 'border':1})
-                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
-                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': formato_project, 'border':1})
-
-                last_col_idx = len(columnas_exportar) - 1 
-                ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
-                
-                date_cols = [4, 5, 7, 8]
-                rain_date_col = 15
-                
-                for r, row in final.iterrows():
-                    impacto = row['Días Impacto']
-                    is_logic = row['IsLogic']
-                    is_summary = row['IsSummary']
-                    
-                    row_fmt = fmt_norm
-                    row_date_fmt = fmt_date
-                    
-                    if is_summary: row_fmt = fmt_summary; row_date_fmt = fmt_summary_date
-                    elif impacto > 2: row_fmt = fmt_high; row_date_fmt = fmt_high_date
-                    elif impacto > 0: row_fmt = fmt_med; row_date_fmt = fmt_med_date
-                    elif is_logic: row_fmt = fmt_logic; row_date_fmt = fmt_logic_date
-                        
-                    for c, col_name in enumerate(columnas_exportar):
-                        val = row.get(col_name, "")
-                        if pd.isna(val): val = ""
-                        
-                        cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
-                        
-                        if (c in date_cols or c == rain_date_col) and isinstance(val, (datetime, date, pd.Timestamp)):
-                            ws.write_datetime(r+2, c, val, cell_fmt)
-                        else:
-                            ws.write(r+2, c, val, cell_fmt)
-                
-                ws.set_column('C:C', 40); ws.set_column('R:R', 35)
-
-                ws_data = wb.add_worksheet('Datos_Graficos')
-                ws_data.write('A1', 'Fecha'); ws_data.write('B1', 'Acumulado Base'); ws_data.write('C1', 'Acumulado Sugerido')
-                
-                df_s_excel = df_s.pivot_table(index='Fecha', columns='Tipo', values='Acumulado', aggfunc='max').ffill().fillna(0).reset_index()
-                if 'Base' not in df_s_excel.columns: df_s_excel['Base'] = 0
-                if 'Sugerido' not in df_s_excel.columns: df_s_excel['Sugerido'] = 0
-                
-                if not df_s_excel.empty:
-                    for i, r in df_s_excel.iterrows():
-                        date_val = r['Fecha']
-                        if isinstance(date_val, pd.Timestamp): date_val = date_val.date()
-                        ws_data.write(i+1, 0, date_val.strftime('%d/%m/%Y'))
-                        ws_data.write(i+1, 1, r['Base'])
-                        ws_data.write(i+1, 2, r['Sugerido'])
-                
-                ws_data.write('E1', 'Mes'); ws_data.write('F1', 'Cantidad')
-                if not df_hist.empty:
-                    counts = df_hist['Mes'].value_counts().reset_index()
-                    counts.columns = ['Mes', 'Qty']
-                    for i, r in counts.iterrows():
-                        ws_data.write(i+1, 4, r['Mes'])
-                        ws_data.write(i+1, 5, r['Qty'])
-
-                chart_sheet1 = wb.add_chartsheet('Grafico_Curva_S')
-                chart1 = wb.add_chart({'type': 'line'})
-                max_row = len(df_s_excel)
-                if max_row > 0:
-                    chart1.add_series({'name': 'Plan Base', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 1, max_row, 1], 'line': {'color': 'gray'}})
-                    chart1.add_series({'name': 'Con Lluvia', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 2, max_row, 2], 'line': {'color': 'blue'}})
-                chart1.set_title({'name': 'Curva S de Avance (Solo Tareas de Trabajo)'})
-                chart_sheet1.set_chart(chart1)
-
-                if not df_hist.empty:
-                    chart_sheet2 = wb.add_chartsheet('Grafico_Barras')
-                    chart2 = wb.add_chart({'type': 'column'})
-                    max_row_h = len(counts)
-                    chart2.add_series({'name': 'Actividades Afectadas', 'categories': ['Datos_Graficos', 1, 4, max_row_h, 4], 'values': ['Datos_Graficos', 1, 5, max_row_h, 5], 'fill': {'color': '#AF1E2D'}})
-                    chart2.set_title({'name': 'Riesgo por Mes'})
-                    chart_sheet2.set_chart(chart2)
-
-            st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
+                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/
