@@ -856,4 +856,98 @@ if uploaded:
             safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
             
             columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
-                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/
+                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
+                                 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
+                                 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
+            
+            with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
+                final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
+                wb = w.book
+                ws = w.sheets['Sugerencias']
+                
+                formato_project = 'dd/mm/yyyy'
+                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
+                fmt_norm = wb.add_format({'border':1})
+                fmt_date = wb.add_format({'num_format': formato_project, 'border':1})
+                fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
+                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': formato_project, 'border':1, 'font_color': 'black'})
+                fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
+                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': formato_project, 'border':1, 'font_color': 'white'})
+                fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
+                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': formato_project, 'border':1})
+                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
+                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': formato_project, 'border':1})
+
+                last_col_idx = len(columnas_exportar) - 1 
+                ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
+                
+                date_cols = [4, 5, 7, 8]
+                rain_date_col = 15
+                
+                for r, row in final.iterrows():
+                    impacto = row['Días Impacto']
+                    is_logic = row['IsLogic']
+                    is_summary = row['IsSummary']
+                    
+                    row_fmt = fmt_norm
+                    row_date_fmt = fmt_date
+                    
+                    if is_summary: row_fmt = fmt_summary; row_date_fmt = fmt_summary_date
+                    elif impacto > 2: row_fmt = fmt_high; row_date_fmt = fmt_high_date
+                    elif impacto > 0: row_fmt = fmt_med; row_date_fmt = fmt_med_date
+                    elif is_logic: row_fmt = fmt_logic; row_date_fmt = fmt_logic_date
+                        
+                    for c, col_name in enumerate(columnas_exportar):
+                        val = row.get(col_name, "")
+                        if pd.isna(val): val = ""
+                        
+                        cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
+                        
+                        if (c in date_cols or c == rain_date_col) and isinstance(val, (datetime, date, pd.Timestamp)):
+                            ws.write_datetime(r+2, c, val, cell_fmt)
+                        else:
+                            ws.write(r+2, c, val, cell_fmt)
+                
+                ws.set_column('C:C', 40); ws.set_column('R:R', 35)
+
+                ws_data = wb.add_worksheet('Datos_Graficos')
+                ws_data.write('A1', 'Fecha'); ws_data.write('B1', 'Acumulado Base'); ws_data.write('C1', 'Acumulado Sugerido')
+                
+                df_s_excel = df_s.pivot_table(index='Fecha', columns='Tipo', values='Acumulado', aggfunc='max').ffill().fillna(0).reset_index()
+                if 'Base' not in df_s_excel.columns: df_s_excel['Base'] = 0
+                if 'Sugerido' not in df_s_excel.columns: df_s_excel['Sugerido'] = 0
+                
+                if not df_s_excel.empty:
+                    for i, r in df_s_excel.iterrows():
+                        date_val = r['Fecha']
+                        if isinstance(date_val, pd.Timestamp): date_val = date_val.date()
+                        ws_data.write(i+1, 0, date_val.strftime('%d/%m/%Y'))
+                        ws_data.write(i+1, 1, r['Base'])
+                        ws_data.write(i+1, 2, r['Sugerido'])
+                
+                ws_data.write('E1', 'Mes'); ws_data.write('F1', 'Cantidad')
+                if not df_hist.empty:
+                    counts = df_hist['Mes'].value_counts().reset_index()
+                    counts.columns = ['Mes', 'Qty']
+                    for i, r in counts.iterrows():
+                        ws_data.write(i+1, 4, r['Mes'])
+                        ws_data.write(i+1, 5, r['Qty'])
+
+                chart_sheet1 = wb.add_chartsheet('Grafico_Curva_S')
+                chart1 = wb.add_chart({'type': 'line'})
+                max_row = len(df_s_excel)
+                if max_row > 0:
+                    chart1.add_series({'name': 'Plan Base', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 1, max_row, 1], 'line': {'color': 'gray'}})
+                    chart1.add_series({'name': 'Con Lluvia', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 2, max_row, 2], 'line': {'color': 'blue'}})
+                chart1.set_title({'name': 'Curva S de Avance (Solo Tareas de Trabajo)'})
+                chart_sheet1.set_chart(chart1)
+
+                if not df_hist.empty:
+                    chart_sheet2 = wb.add_chartsheet('Grafico_Barras')
+                    chart2 = wb.add_chart({'type': 'column'})
+                    max_row_h = len(counts)
+                    chart2.add_series({'name': 'Actividades Afectadas', 'categories': ['Datos_Graficos', 1, 4, max_row_h, 4], 'values': ['Datos_Graficos', 1, 5, max_row_h, 5], 'fill': {'color': '#AF1E2D'}})
+                    chart2.set_title({'name': 'Riesgo por Mes'})
+                    chart_sheet2.set_chart(chart2)
+
+            st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
