@@ -104,129 +104,8 @@ def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     return sugerencias
 
 # ==============================================================================
-# CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
+# FUNCIONES DE SOPORTE Y DATOS
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico", layout="wide", page_icon="⚡")
-
-st.markdown("""
-    <style>
-        .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap');
-        html, body, [class*="css"]  { font-family: 'Inter', sans-serif !important; }
-        .stApp { background-color: #F8FAFC; } /* Fondo ligeramente más claro */
-        #MainMenu {visibility: hidden;} footer {visibility: hidden;}
-        [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
-        
-        /* Estilos generales de botones */
-        .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 0.5rem 1rem; box-shadow: 0 4px 6px -1px rgba(175, 30, 45, 0.2); }
-        .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(175, 30, 45, 0.3); background-color: #901924; }
-        
-        /* Estilo minimalista para el botón de descarga del manual en el sidebar */
-        [data-testid="stSidebar"] .stDownloadButton > button {
-            background-color: #64748B !important;
-            color: #FFFFFF !important;
-            border: 1px solid #475569 !important;
-            border-radius: 6px !important;
-            font-weight: 500 !important;
-            font-size: 0.9rem !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            transition: background-color 0.2s ease !important;
-        }
-        [data-testid="stSidebar"] .stDownloadButton > button:hover {
-            background-color: #475569 !important;
-            border-color: #334155 !important;
-        }
-
-        .kpi-container { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
-        .kpi-box { background-color: #FFFFFF; border-radius: 12px; padding: 24px; flex: 1; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border: 1px solid #F1F5F9; transition: transform 0.2s ease; position: relative; overflow: hidden; }
-        .kpi-box:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
-        .kpi-box::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background-color: #0F172A; }
-        .kpi-title { font-size: 0.85rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 8px; }
-        .kpi-value { font-size: 2.8rem; font-weight: 800; color: #0F172A; line-height: 1.1; letter-spacing: -0.02em; }
-        .kpi-value span { font-size: 1.2rem; font-weight: 600; color: #94A3B8; }
-        .kpi-value.danger { color: #AF1E2D; }
-        .kpi-subtitle { font-size: 0.85rem; color: #94A3B8; margin-top: 8px; }
-        .ia-card { background-color: #F0F9FF; padding: 1.5rem; border-left: 4px solid #0EA5E9; border-radius: 8px; margin-bottom: 1rem; color: #0369A1; font-weight: 500; font-size: 0.95rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
-    </style>
-""", unsafe_allow_html=True)
-
-if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4861
-if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.9312
-if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Distrito Nacional - Santo Domingo (Centro)"
-if 'audit_decision' not in st.session_state: st.session_state['audit_decision'] = None
-if 'project_name' not in st.session_state: st.session_state['project_name'] = "Proyecto"
-if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
-if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
-
-# ---------------- BANNER DINÁMICO DE RED (PARTICLES.JS) ----------------
-banner_html = """
-<div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
-    <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
-        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI</h1>
-    </div>
-</div>
-<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-<script>
-    particlesJS("particles-js", {
-      "particles": {
-        "number": {"value": 80, "density": {"enable": true, "value_area": 800}},
-        "color": {"value": "#ffffff"},
-        "shape": {"type": "circle"},
-        "opacity": {"value": 0.3, "random": false},
-        "size": {"value": 3, "random": true},
-        "line_linked": {"enable": true, "distance": 150, "color": "#38BDF8", "opacity": 0.4, "width": 1.5},
-        "move": {"enable": true, "speed": 1.5, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false}
-      },
-      "interactivity": {
-        "detect_on": "canvas",
-        "events": {
-          "onhover": {"enable": true, "mode": "grab"},
-          "onclick": {"enable": true, "mode": "push"},
-          "resize": true
-        },
-        "modes": {
-          "grab": {"distance": 140, "line_linked": {"opacity": 1}},
-          "push": {"particles_nb": 3}
-        }
-      },
-      "retina_detect": true
-    });
-</script>
-"""
-
-col_logo, col_banner = st.columns([1, 6], gap="medium")
-with col_logo:
-    st.markdown("<br>", unsafe_allow_html=True)
-    try: st.image("logo_chronoflux.png", use_container_width=True)
-    except: st.empty()
-
-with col_banner:
-    # Renderizamos el banner animado sin el texto descriptivo
-    components.html(banner_html, height=135)
-
-# ==============================================================================
-# GEOLOCALIZACIÓN Y MAPA
-# ==============================================================================
-COORDENADAS_RD = {
-    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
-    "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
-    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525),
-    "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029),
-    "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565),
-    "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515),
-    "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Romana - La Romana (Cabecera)": (18.4273, -68.9728),
-    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511),
-    "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450),
-    "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431),
-    "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884),
-    "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112),
-    "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299),
-    "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468),
-    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457),
-    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
-}
-
 def calcular_pascua(year):
     a = year % 19; b = year // 100; c = year % 100; d = b // 4; e = b % 4; f = (b + 8) // 25
     g = (b - f + 1) // 3; h = (19 * a + b - d - g + 15) % 30; i = c // 4; k = c % 4
@@ -350,9 +229,6 @@ def auditar_xml(file):
             })
     return pd.DataFrame(tareas).sort_values('ID')
 
-# ==============================================================================
-# ALGORITMO CPM - CON INYECCIÓN IA
-# ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
     G = nx.DiGraph()
     for _, row in df.iterrows():
@@ -559,8 +435,174 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     return df_res.sort_values('ID').reset_index(drop=True)
 
 # ==============================================================================
-# INTERFAZ PRINCIPAL Y BARRA LATERAL (SIDEBAR IA)
+# CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
 # ==============================================================================
+st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico", layout="wide", page_icon="⚡")
+
+st.markdown("""
+    <style>
+        .block-container { padding-top: 1.5rem !important; padding-bottom: 1rem !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap');
+        html, body, [class*="css"]  { font-family: 'Inter', sans-serif !important; }
+        .stApp { background-color: #F8FAFC; } /* Fondo ligeramente más claro */
+        #MainMenu {visibility: hidden;} footer {visibility: hidden;}
+        [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
+        
+        /* Estilos generales de botones */
+        .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 0.5rem 1rem; box-shadow: 0 4px 6px -1px rgba(175, 30, 45, 0.2); }
+        .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(175, 30, 45, 0.3); background-color: #901924; }
+        
+        /* Estilo minimalista para el botón de descarga del manual en el sidebar */
+        [data-testid="stSidebar"] .stDownloadButton > button {
+            background-color: #64748B !important;
+            color: #FFFFFF !important;
+            border: 1px solid #475569 !important;
+            border-radius: 6px !important;
+            font-weight: 500 !important;
+            font-size: 0.9rem !important;
+            width: 100% !important;
+            box-shadow: none !important;
+            transition: background-color 0.2s ease !important;
+        }
+        [data-testid="stSidebar"] .stDownloadButton > button:hover {
+            background-color: #475569 !important;
+            border-color: #334155 !important;
+        }
+
+        .kpi-container { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
+        .kpi-box { background-color: #FFFFFF; border-radius: 12px; padding: 24px; flex: 1; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border: 1px solid #F1F5F9; transition: transform 0.2s ease; position: relative; overflow: hidden; }
+        .kpi-box:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .kpi-box::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background-color: #0F172A; }
+        .kpi-title { font-size: 0.85rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 8px; }
+        .kpi-value { font-size: 2.8rem; font-weight: 800; color: #0F172A; line-height: 1.1; letter-spacing: -0.02em; }
+        .kpi-value span { font-size: 1.2rem; font-weight: 600; color: #94A3B8; }
+        .kpi-value.danger { color: #AF1E2D; }
+        .kpi-subtitle { font-size: 0.85rem; color: #94A3B8; margin-top: 8px; }
+        .ia-card { background-color: #F0F9FF; padding: 1.5rem; border-left: 4px solid #0EA5E9; border-radius: 8px; margin-bottom: 1rem; color: #0369A1; font-weight: 500; font-size: 0.95rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);}
+    </style>
+""", unsafe_allow_html=True)
+
+if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4861
+if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.9312
+if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Distrito Nacional - Santo Domingo (Centro)"
+if 'audit_decision' not in st.session_state: st.session_state['audit_decision'] = None
+if 'project_name' not in st.session_state: st.session_state['project_name'] = "Proyecto"
+if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
+if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
+
+# ==============================================================================
+# INTERFAZ PRINCIPAL Y BARRA LATERAL
+# ==============================================================================
+with st.sidebar:
+    st.header("⚙️ Configuración Logística")
+    st.subheader("1. Horario de Obra")
+    h_inicio, h_fin = st.slider("Jornada", 0, 23, (8, 17))
+    st.subheader("2. Días Laborables")
+    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie"])
+    mapa_d = {"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}
+    dias_idx = [mapa_d[d] for d in dias_sel]
+    
+    st.markdown("---")
+    st.header("🧠 Capa Cognitiva e Inteligencia Artificial")
+    activar_nlp = st.toggle("Procesamiento de Lenguaje Natural (Clasificación Semántica)", value=True)
+    activar_ml = st.toggle("Motor Random Forest (Tiempo de Recuperación Tr)", value=True)
+    activar_ag = st.toggle("Agente Prescriptivo (Mitigación Topológica)", value=True)
+    
+    st.markdown("---")
+    st.subheader("🌡️ Termodinámica (Variables de Inferencia Continua)")
+    temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, 30.0, 0.5, help="Variable predictora para el cálculo de evaporación en el Random Forest.")
+    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0, help="Déficit de presión de vapor para modelar el secado del estrato geotécnico.")
+
+    # ---------------- DESCARGA DE MANUAL (AL FINAL DE LA BARRA LATERAL) ----------------
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    try:
+        with open("CHRONOFLUX_USER_MANUAL.pdf", "rb") as pdf_file:
+            pdf_bytes = pdf_file.read()
+        st.download_button(
+            label="📄 Descargar Manual de usuario",
+            data=pdf_bytes,
+            file_name="CHRONOFLUX_USER_MANUAL.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            help="Descarga el manual operativo y de blindaje forense en formato PDF."
+        )
+    except FileNotFoundError:
+        st.download_button(
+            label="📄 Descargar Manual de usuario",
+            data=b"Archivo no encontrado",
+            file_name="error.txt",
+            use_container_width=True,
+            disabled=True,
+            help="Coloque el archivo CHRONOFLUX_USER_MANUAL.pdf en la raíz de la aplicación."
+        )
+
+# ---------------- BANNER DINÁMICO DE RED (PARTICLES.JS) ----------------
+banner_html = """
+<div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+    <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
+        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI</h1>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+<script>
+    particlesJS("particles-js", {
+      "particles": {
+        "number": {"value": 80, "density": {"enable": true, "value_area": 800}},
+        "color": {"value": "#ffffff"},
+        "shape": {"type": "circle"},
+        "opacity": {"value": 0.3, "random": false},
+        "size": {"value": 3, "random": true},
+        "line_linked": {"enable": true, "distance": 150, "color": "#38BDF8", "opacity": 0.4, "width": 1.5},
+        "move": {"enable": true, "speed": 1.5, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false}
+      },
+      "interactivity": {
+        "detect_on": "canvas",
+        "events": {
+          "onhover": {"enable": true, "mode": "grab"},
+          "onclick": {"enable": true, "mode": "push"},
+          "resize": true
+        },
+        "modes": {
+          "grab": {"distance": 140, "line_linked": {"opacity": 1}},
+          "push": {"particles_nb": 3}
+        }
+      },
+      "retina_detect": true
+    });
+</script>
+"""
+
+col_logo, col_banner = st.columns([1, 6], gap="medium")
+with col_logo:
+    st.markdown("<br>", unsafe_allow_html=True)
+    try: st.image("logo_chronoflux.png", use_container_width=True)
+    except: st.empty()
+
+with col_banner:
+    components.html(banner_html, height=135)
+
+# ==============================================================================
+# GEOLOCALIZACIÓN Y MAPA
+# ==============================================================================
+COORDENADAS_RD = {
+    "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
+    "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
+    "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525),
+    "El Seibo - Santa Cruz de El Seibo (Cabecera)": (18.7656, -69.0389), "Elías Piña - Comendador (Cabecera)": (18.8767, -71.7029),
+    "Espaillat - Moca (Cabecera)": (19.6267, -70.2764), "Hato Mayor - Hato Mayor del Rey (Cabecera)": (18.7622, -69.2565),
+    "Hermanas Mirabal - Salcedo (Cabecera)": (19.3735, -70.4188), "Independencia - Jimaní (Cabecera)": (18.4877, -71.8515),
+    "La Altagracia - Higüey (Cabecera)": (18.6147, -68.7171), "La Romana - La Romana (Cabecera)": (18.4273, -68.9728),
+    "La Vega - Concepción de La Vega (Cabecera)": (19.2208, -70.5292), "María Trinidad Sánchez - Nagua (Cabecera)": (19.3667, -69.8511),
+    "Monseñor Nouel - Bonao (Cabecera)": (18.9272, -70.3973), "Monte Cristi - San Fernando (Cabecera)": (19.8483, -71.6450),
+    "Monte Plata - Monte Plata (Cabecera)": (18.8078, -69.7848), "Pedernales - Pedernales (Cabecera)": (18.0333, -71.7431),
+    "Peravia - Baní (Cabecera)": (18.2796, -70.3319), "Puerto Plata - San Felipe (Cabecera)": (19.7934, -70.6884),
+    "Samaná - Santa Bárbara (Cabecera)": (19.2056, -69.3262), "San Cristóbal - San Cristóbal (Cabecera)": (18.4162, -70.1112),
+    "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299),
+    "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468),
+    "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457),
+    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
+}
+
 def actualizar_desde_dropdown():
     coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
     st.session_state['lat_actual'] = coords[0]; st.session_state['lon_actual'] = coords[1]
@@ -727,7 +769,7 @@ if uploaded:
                 df_s = df_s.sort_values('Fecha')
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
-                # Curva S Modernizada
+                # Curva S Modernizada (Con relleno de área)
                 fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
                                 color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'},
                                 markers=True, line_shape='spline', template='plotly_white')
@@ -869,27 +911,3 @@ if uploaded:
                     chart_sheet2.set_chart(chart2)
 
             st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
-
-# ---------------- DESCARGA DE MANUAL (AL FINAL DE LA BARRA LATERAL) ----------------
-with st.sidebar:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    try:
-        with open("CHRONOFLUX_USER_MANUAL.pdf", "rb") as pdf_file:
-            pdf_bytes = pdf_file.read()
-        st.download_button(
-            label="📄 Descargar Manual de usuario",
-            data=pdf_bytes,
-            file_name="CHRONOFLUX_USER_MANUAL.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            help="Descarga el manual operativo y de blindaje forense en formato PDF."
-        )
-    except FileNotFoundError:
-        st.download_button(
-            label="📄 Descargar Manual de usuario",
-            data=b"Archivo no encontrado",
-            file_name="error.txt",
-            use_container_width=True,
-            disabled=True,
-            help="Coloque el archivo CHRONOFLUX_USER_MANUAL.pdf en la raíz de la aplicación."
-        )
