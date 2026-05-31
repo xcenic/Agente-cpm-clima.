@@ -26,7 +26,6 @@ except ImportError:
 # ==============================================================================
 # CONFIGURACIÓN INICIAL DE ESTADOS (SESSION STATE)
 # ==============================================================================
-# Se inicializan los estados para que la función callback pueda modificarlos
 if 'jornada_state' not in st.session_state: st.session_state['jornada_state'] = (8, 17)
 if 'nlp_state' not in st.session_state: st.session_state['nlp_state'] = True
 if 'ml_state' not in st.session_state: st.session_state['ml_state'] = True
@@ -36,10 +35,18 @@ if 'hum_state' not in st.session_state: st.session_state['hum_state'] = 85.0
 if 'pr_state' not in st.session_state: st.session_state['pr_state'] = 65
 if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 5.0
 if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 3.0
-if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Ajuste manual de las variables del proyecto."
+if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Ajuste manual de las variables estocásticas y logísticas del proyecto."
+if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4758
+if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.7781
+if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Santo Domingo Este - PROPACC LAS DAMAS"
+if 'combo_ubicacion' not in st.session_state: st.session_state['combo_ubicacion'] = "Santo Domingo Este - PROPACC LAS DAMAS"
+if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
+if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
+if 'audit_decision' not in st.session_state: st.session_state['audit_decision'] = None
+if 'project_name' not in st.session_state: st.session_state['project_name'] = "Proyecto"
 
 # ==============================================================================
-# DICCIONARIO MAESTRO DE COORDENADAS (GLOBAL)
+# DICCIONARIO MAESTRO DE COORDENADAS
 # ==============================================================================
 COORDENADAS_RD = {
     "Santo Domingo Este - PROPACC LAS DAMAS": (18.4758, -69.7781),
@@ -62,91 +69,92 @@ COORDENADAS_RD = {
 }
 
 # ==============================================================================
-# BASE DE DATOS DE ENSAYOS (PRESETS DE VALIDACIÓN)
+# BASE DE DATOS DE ENSAYOS (PRESETS DE VALIDACIÓN - PRO ADVANCED)
 # ==============================================================================
 PRESETS_MODELOS = {
     "Personalizado (Ajuste Manual)": {
-        "desc": "Modo de operación libre. Ajuste los deslizadores según su criterio profesional.",
+        "desc": "Modo de operación libre. Ajuste los deslizadores paramétricos según su criterio profesional forense.",
     },
     "01: CFX-VAL-01-BASE (Determinista Puro)": {
         "nlp": False, "ml": False, "pr": 100, "ur": 50.0, "ut": 1.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Baseline determinista. Capa IA desactivada y umbrales inalcanzables. El motor CPM arrojará una inyección EVB nula (Cero desviación)."
+        "desc": "Baseline determinista. Capa IA desactivada y umbrales inalcanzables. El motor CPM arrojará una inyección EVB nula (Cero desviación algorítmica)."
     },
     "02: CFX-VAL-02-CICLO (Sensibilidad Otoño)": {
         "nlp": True, "ml": True, "pr": 40, "ur": 1.5, "ut": 3.0, "temp": 28.5, "hum": 74.8, "jornada": (8, 17),
-        "desc": "Simula los meses críticos de ciclones (Sept-Oct). Alta humedad y captura de eventos pluviométricos convectivos."
+        "desc": "Simula los meses críticos de ciclones (Sept-Oct). Alta humedad y captura de eventos pluviométricos convectivos frecuentes."
     },
     "03: CFX-VAL-03-ESTIAJE (Ventana Seca)": {
         "nlp": True, "ml": True, "pr": 70, "ur": 5.0, "ut": 2.0, "temp": 26.4, "hum": 65.6, "jornada": (8, 17),
-        "desc": "Simula Enero-Febrero. Reconoce la 'ventana seca' reduciendo drásticamente el EVB. Valida la no-penalización del modelo."
+        "desc": "Simula Enero-Febrero. Reconoce la 'ventana seca' reduciendo drásticamente el EVB. Valida que el modelo no penalice falsamente el Gantt."
     },
-    "04: CFX-VAL-04-OPEX (Estrés Logístico)": {
+    "04: CFX-VAL-04-OPEX (Estrés Logístico Moderado)": {
         "nlp": True, "ml": True, "pr": 60, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Intolerancia a la ineficiencia. Si la lluvia drena > 2.5h, se pierde el día completo para proteger los costos de maquinaria (OPEX)."
+        "desc": "Protección de costos indirectos. Si la lluvia drena > 2.5h, se pierde el día completo para proteger el OPEX de la maquinaria pesada."
     },
-    "05: CFX-VAL-05-HEAT (Aceleración Evaporación)": {
+    "05: CFX-VAL-05-HEAT (Evaporación Extrema)": {
         "nlp": True, "ml": True, "pr": 50, "ur": 3.5, "ut": 2.5, "temp": 32.0, "hum": 55.0, "jornada": (8, 17),
-        "desc": "Radiación extrema. Random Forest computa Tr mínimo. Tras una lluvia corta, el terreno granular drena rápido y se reanuda la operación."
+        "desc": "Radiación extrema. Random Forest computa Tr mínimo. Tras una precipitación, la alta temperatura seca rápidamente el estrato."
     },
-    "06: CFX-VAL-06-VAGUADA (Bloqueo Geotécnico)": {
+    "06: CFX-VAL-06-VAGUADA (Saturación Extrema)": {
         "nlp": True, "ml": True, "pr": 30, "ur": 1.0, "ut": 4.0, "temp": 24.5, "hum": 95.0, "jornada": (8, 17),
-        "desc": "Saturación extrema. Baja temperatura y altísima humedad anulan la evapotranspiración. Genera parálisis prolongadas (>48h)."
+        "desc": "Saturación capilar. Baja temperatura y altísima humedad anulan la evapotranspiración latente. Genera bloqueos prolongados."
     },
     "07: CFX-VAL-07-NLP (Auditoría Semántica)": {
         "nlp": False, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Desactiva NLP. El modelo recurre a la heurística básica de expresiones regulares, perdiendo precisión en la deducción del Coeficiente de Impacto."
+        "desc": "Desactiva Transformer NLP. El sistema utiliza heurística de expresiones regulares para asignar vulnerabilidades de materiales."
     },
     "08: CFX-VAL-08-ML (Auditoría Termodinámica)": {
         "nlp": True, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Desactiva Random Forest. El modelo utiliza retrasos fijos ignorando el microclima. Expone la sobre o subestimación sin Machine Learning."
+        "desc": "Desactiva Random Forest. El modelo utiliza retrasos fijos ignorando el microclima térmico e hídrico del entorno real."
     },
     "09: CFX-VAL-09-OVERTIME (Turnos Extendidos)": {
         "nlp": True, "ml": True, "pr": 50, "ur": 4.0, "ut": 1.5, "temp": 28.2, "hum": 72.0, "jornada": (7, 18),
-        "desc": "Expande la jornada de 11 horas (7:00 a 18:00). Al incrementar el divisor Hw, se diluye el impacto porcentual de una lluvia matutina."
+        "desc": "Dilución del impacto. Al expandir la jornada operativa (11 horas), el daño porcentual a la ruta crítica decrece."
     },
-    "10: CFX-VAL-10-COLLAPSE (Worst-Case Scenario)": {
+    "10: CFX-VAL-10-COLLAPSE (Worst-Case General)": {
         "nlp": True, "ml": True, "pr": 20, "ur": 0.5, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
-        "desc": "Estrés sistémico. Captura trazas mínimas de lluvia y penaliza agresivamente la eficiencia. Demuestra la propagación del algoritmo de Kahn al extremo."
+        "desc": "Estrés sistémico medio. Captura trazas mínimas de lluvia y penaliza agresivamente la eficiencia. Obliga alertas prescriptivas."
     },
-    "11: CFX-VAL-11-CLAY (Sensibilidad Arcillas)": {
+    # ---- NUEVOS 10 MODELOS AVANZADOS (11-20) ----
+    "11: CFX-VAL-11-CLAY (Hipersensibilidad Cohesiva)": {
         "nlp": True, "ml": True, "pr": 60, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Valida suelos A-7-6. Observa cómo el algoritmo castiga las tareas de movimiento de tierras con altos Tiempos de Recuperación (Tr)."
+        "desc": "Audita la respuesta PIML en arcillas A-7-6. Almacena agua capilar, obligando a NetworkX a empujar fechas tempranas (ES') asintóticamente."
     },
-    "12: CFX-VAL-12-GRAN (Sensibilidad Granulares)": {
+    "12: CFX-VAL-12-GRAN (Infiltración Darciana)": {
         "nlp": True, "ml": True, "pr": 60, "ur": 5.0, "ut": 2.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Valida suelos A-1-a. Alta permisividad pluvial que demuestra la rápida infiltración darciana en subbases respecto a arcillas cohesivas."
+        "desc": "Evalúa suelos A-1-a. Alta permisividad pluvial que demuestra la rápida infiltración gravitacional en bases granulares."
     },
     "13: CFX-VAL-13-DEPR (Depresión Tropical)": {
-        "nlp": True, "ml": True, "pr": 20, "ur": 0.8, "ut": 7.0, "temp": 25.0, "hum": 85.0, "jornada": (8, 17),
-        "desc": "Baja presión atmosférica. Prescribe la paralización total de los frentes a cielo abierto al descender drásticamente la probabilidad y el umbral de horas."
+        "nlp": True, "ml": True, "pr": 15, "ur": 0.5, "ut": 6.5, "temp": 25.0, "hum": 85.0, "jornada": (8, 17),
+        "desc": "Baja presión atmosférica. Simula llovizna constante. Prescribe paralización total al registrar trazas que destruyen la tracción mecánica."
     },
-    "14: CFX-VAL-14-SHIFT (Optimización 11H)": {
+    "14: CFX-VAL-14-SHIFT (Fast-Tracking Logístico)": {
         "nlp": True, "ml": True, "pr": 55, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18),
-        "desc": "Ensayo de Fast-Tracking con mitigación logística para estabilizar el avance mediante la expansión del horario."
+        "desc": "Verificación del operador de cuantización Q. El incremento del divisor de ventana (Hw) amortigua las anomalías climáticas matutinas."
     },
-    "15: CFX-VAL-15-TEMP (Calor Extremo - Sequía)": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 50.0, "jornada": (8, 17),
-        "desc": "Lleva la variable temperatura a sus límites para forzar el secado instantáneo y validar que el algoritmo no aplique EVB en tareas granulares."
+    "15: CFX-VAL-15-HEAT (Isla de Calor Estival)": {
+        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 45.0, "jornada": (8, 17),
+        "desc": "Temperatura llevada a sus límites. Evalúa el límite asintótico del secado (Tr → 0) post-lluvia, ahorrando holguras."
     },
     "16: CFX-VAL-16-HUM (Punto de Rocío/Niebla)": {
         "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 24.0, "hum": 98.0, "jornada": (8, 17),
-        "desc": "Anula el déficit de presión de vapor. Audita la capacidad del ML de frenar tareas netamente por humedad sin requerir precipitaciones extremas."
+        "desc": "Anulación del déficit de presión de vapor. Aire saturado impide la evapotranspiración. Genera bloqueos masivos."
     },
-    "17: CFX-VAL-17-CRIT (Cuello de Botella Forzado)": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Prueba de propagación lineal. Unidades críticas en secuencia mostrarán el empuje exacto a lo largo de toda la matriz de tiempo del proyecto."
+    "17: CFX-VAL-17-OPEX (Restricción Financiera Severa)": {
+        "nlp": True, "ml": True, "pr": 50, "ur": 2.0, "ut": 7.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Intolerancia a la ineficiencia económica. Con Ut=7.0h, una sola hora de lluvia descarta la jornada operativa para blindar el flujo de caja."
     },
-    "18: CFX-VAL-18-RES (Reasignación Restringida)": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Evalúa el comportamiento del Agente Prescriptivo limitando las opciones logísticas. Genera advertencias más conservadoras de mitigación."
+    "18: CFX-VAL-18-FLASH (Lluvias Convectivas Torrenciales)": {
+        "nlp": True, "ml": True, "pr": 10, "ur": 15.0, "ut": 1.0, "temp": 28.0, "hum": 75.0, "jornada": (8, 17),
+        "desc": "Filtra lloviznas (Ur=15mm). Aísla e impacta la matriz topológica exclusivamente bajo aguaceros masivos que desbordan drenajes."
     },
-    "19: CFX-VAL-19-SEASON (Variación Estacional)": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Demuestra gráficamente la diferencia de volumen estocástico evaluando la base ERA5 bajo las variaciones cíclicas del año civil."
+    "19: CFX-VAL-19-BLIND (Fallo Cognitivo Cruzado)": {
+        "nlp": False, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Muerte de ambas IAs. Todo se procesa con penalizaciones deterministas ciegas. Sirve de contraste forense para medir los días salvados por la IA."
     },
-    "20: CFX-VAL-20-SWAN (Cisne Negro)": {
+    "20: CFX-VAL-20-SWAN (Cisne Negro / Colapso Asintótico)": {
         "nlp": True, "ml": True, "pr": 10, "ur": 0.1, "ut": 8.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
-        "desc": "Punto de quiebre. Máxima fragilidad matemática. Valida la estabilidad numérica asintótica evitando que el sistema colapse por recursión."
+        "desc": "Prueba de tensión máxima. Cualquier traza pluviométrica paraliza la obra completa. Evalúa que Kahn no entre en bucle de recursión infinita."
     }
 }
 
@@ -166,7 +174,7 @@ def aplicar_preset():
         st.session_state.hum_state = float(p['hum'])
         st.session_state.jornada_state = p['jornada']
         
-        # Forzar Coordenadas a Propacc Las Damas
+        # Volar automáticamente a Propacc Las Damas
         st.session_state.combo_ubicacion = "Santo Domingo Este - PROPACC LAS DAMAS"
         st.session_state.lat_actual = 18.4758
         st.session_state.lon_actual = -69.7781
@@ -183,10 +191,9 @@ try:
     warnings.filterwarnings("ignore")
     IA_DISPONIBLE = True
 except ImportError:
-    st.sidebar.error("⚠️ Faltan librerías de IA. Para activar la capa cognitiva ejecuta: pip install transformers torch scikit-learn numpy")
+    st.sidebar.error("⚠️ Faltan librerías de IA.")
     IA_DISPONIBLE = False
 
-# --- MOTOR IA 1: NLP ---
 @st.cache_resource(show_spinner=False)
 def cargar_motor_nlp():
     if not IA_DISPONIBLE: return None
@@ -211,7 +218,6 @@ def calcular_ic_ia(nombre_tarea, usar_ia=True):
         return mapa_ic[res['labels'][0]]
     except: return 1.5
 
-# --- MOTOR IA 2: ML Tr ---
 @st.cache_resource(show_spinner=False)
 def entrenar_modelo_termodinamico():
     if not IA_DISPONIBLE: return None
@@ -238,7 +244,6 @@ def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usa
     ic_dinamico = round(1.0 + tr_dias, 2)
     return tr_horas, ic_dinamico
 
-# --- MOTOR IA 3: AGENTE PRESCRIPTIVO ---
 def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     sugerencias = []
     if evb_total < 3:
@@ -637,14 +642,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4861
-if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.9312
-if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Distrito Nacional - Santo Domingo (Centro)"
-if 'audit_decision' not in st.session_state: st.session_state['audit_decision'] = None
-if 'project_name' not in st.session_state: st.session_state['project_name'] = "Proyecto"
-if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
-if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
-
 # ==============================================================================
 # INTERFAZ PRINCIPAL Y BARRA LATERAL
 # ==============================================================================
@@ -710,370 +707,3 @@ banner_html = """
       "particles": {
         "number": {"value": 80, "density": {"enable": true, "value_area": 800}},
         "color": {"value": "#ffffff"},
-        "shape": {"type": "circle"},
-        "opacity": {"value": 0.3, "random": false},
-        "size": {"value": 3, "random": true},
-        "line_linked": {"enable": true, "distance": 150, "color": "#38BDF8", "opacity": 0.4, "width": 1.5},
-        "move": {"enable": true, "speed": 1.5, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false}
-      },
-      "interactivity": {
-        "detect_on": "canvas",
-        "events": {
-          "onhover": {"enable": true, "mode": "grab"},
-          "onclick": {"enable": true, "mode": "push"},
-          "resize": true
-        },
-        "modes": {
-          "grab": {"distance": 140, "line_linked": {"opacity": 1}},
-          "push": {"particles_nb": 3}
-        }
-      },
-      "retina_detect": true
-    });
-</script>
-"""
-
-col_logo, col_banner = st.columns([1, 6], gap="medium")
-with col_logo:
-    st.markdown("<br>", unsafe_allow_html=True)
-    try: st.image("logo_chronoflux.png", use_container_width=True)
-    except: st.empty()
-
-with col_banner:
-    components.html(banner_html, height=135)
-
-# ==============================================================================
-# GEOLOCALIZACIÓN Y MAPA
-# ==============================================================================
-def actualizar_desde_dropdown():
-    coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
-    st.session_state['lat_actual'] = coords[0]; st.session_state['lon_actual'] = coords[1]
-    st.session_state['ubicacion_nombre'] = st.session_state.combo_ubicacion
-    # Si mueve el dropdown manualmente, resetea el preset
-    if st.session_state.selector_preset != "Personalizado (Ajuste Manual)":
-        st.session_state.selector_preset = "Personalizado (Ajuste Manual)"
-        st.session_state.desc_actual = PRESETS_MODELOS["Personalizado (Ajuste Manual)"]['desc']
-
-if 'combo_ubicacion' not in st.session_state: st.session_state['combo_ubicacion'] = "Santo Domingo Este - PROPACC LAS DAMAS"
-
-st.selectbox("📍 Buscar Ubicación de Proyecto:", sorted(list(COORDENADAS_RD.keys())), key='combo_ubicacion', on_change=actualizar_desde_dropdown)
-st.markdown(f"**Coordenadas de Análisis:** `Latitud: {st.session_state['lat_actual']:.4f}, Longitud: {st.session_state['lon_actual']:.4f}`")
-
-m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_actual']], zoom_start=12)
-m.add_child(folium.LatLngPopup()) 
-folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
-map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
-
-if map_data and map_data.get("last_clicked"):
-    lat_c = map_data["last_clicked"]["lat"]; lon_c = map_data["last_clicked"]["lng"]
-    if round(lat_c, 4) != round(st.session_state['lat_actual'], 4) or round(lon_c, 4) != round(st.session_state['lon_actual'], 4):
-        st.session_state['lat_actual'] = lat_c; st.session_state['lon_actual'] = lon_c
-        st.session_state['ubicacion_nombre'] = f"Pin Manual: {lat_c:.4f}, {lon_c:.4f}"
-        st.rerun()
-
-st.markdown("---")
-
-# ==============================================================================
-# GRÁFICA CLIMÁTICA Y RADAR
-# ==============================================================================
-st.subheader(f"🌦️ Comportamiento Climático Histórico ({st.session_state['ubicacion_nombre']})")
-with st.spinner("Accediendo al caché geoespacial o descargando micro-clima (Lluvia, Temp, Humedad)..."):
-    df_g, clima, orden = obtener_clima_horario_laboral(st.session_state['lat_actual'], st.session_state['lon_actual'], h_inicio, h_fin)
-    if df_g is not None:
-        tab_precip, tab_temp, tab_hum = st.tabs(["🌧️ Lluvia (mm)", "🌡️ Temperatura (°C)", "💧 Humedad (%)"])
-        
-        with tab_precip:
-            fig_clima = px.bar(df_g, x='Mes', y='mm', text='mm', 
-                               color='mm', color_continuous_scale=px.colors.sequential.Blues,
-                               hover_data={'prob_lluvia': ':.1%'},
-                               labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-            fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-            fig_clima.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
-            st.plotly_chart(fig_clima, use_container_width=True)
-            
-        with tab_temp:
-            fig_temp = px.bar(df_g, x='Mes', y='temp', text='temp',
-                              color='temp', color_continuous_scale=px.colors.sequential.Oranges,
-                              labels={'temp': 'Temp Promedio (°C)'})
-            fig_temp.update_traces(texttemplate='%{text:.1f}°', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-            fig_temp.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
-            st.plotly_chart(fig_temp, use_container_width=True)
-            
-        with tab_hum:
-            fig_hum = px.bar(df_g, x='Mes', y='hum', text='hum',
-                             color='hum', color_continuous_scale=px.colors.sequential.Teal,
-                             labels={'hum': 'Humedad Relativa Promedio (%)'})
-            fig_hum.update_traces(texttemplate='%{text:.1f}%', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-            fig_hum.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0', range=[0, 100]), xaxis_title=None, height=400)
-            st.plotly_chart(fig_hum, use_container_width=True)
-
-st.markdown("---")
-st.subheader(f"📡 Radar Satelital en Tiempo Real ({st.session_state['ubicacion_nombre']})")
-windy_html = f"""
-<iframe width="100%" height="450" 
-    src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=9&overlay=rain&product=ecmwf&level=surface&lat={st.session_state['lat_actual']}&lon={st.session_state['lon_actual']}" 
-    frameborder="0" style="border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-</iframe>
-"""
-components.html(windy_html, height=450)
-st.markdown("---")
-
-# ==============================================================================
-# CARGA DE XML Y EJECUCIÓN DEL MOTOR
-# ==============================================================================
-uploaded = st.file_uploader("📂 Paso Final: Cargar Cronograma XML (MS Project)", type=['xml'])
-
-if uploaded is not None and st.session_state.get('last_uploaded') != uploaded.name:
-    st.session_state['simulacion_activa'] = False
-    st.session_state['resultados_finales'] = None
-    st.session_state['last_uploaded'] = uploaded.name
-
-if uploaded:
-    uploaded.seek(0)
-    df_aud = auditar_xml(uploaded)
-    errores = df_aud[(df_aud['Errores'] != 'OK')]
-    
-    if not errores.empty:
-        st.warning(f"⚠️ {len(errores)} Tareas con problemas lógicos topológicos.")
-        decision = st.radio("Acción de Auditoría:", ["Reparar Automáticamente (Recomendado)", "Descargar Errores (Excel)", "Ignorar"], horizontal=True)
-        if decision == "Descargar Errores (Excel)":
-            b = io.BytesIO()
-            with pd.ExcelWriter(b) as w: errores.to_excel(w, index=False)
-            st.download_button("Descargar Archivo de Errores", b.getvalue(), "Errores.xlsx")
-            st.session_state['audit_decision'] = None
-        elif decision == "Reparar Automáticamente (Recomendado)": st.session_state['audit_decision'] = "Automática"
-        else: st.session_state['audit_decision'] = "Ignorar"
-    else:
-        st.success("✅ Estructura Lógica Perfecta")
-        st.session_state['audit_decision'] = "OK"
-
-    if st.session_state['audit_decision']:
-        st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
-        
-        c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, key='pr_state', help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
-        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, step=0.5, key='ur_state', help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, step=0.5, key='ut_state', help="Umbral Operativo (Ut). Horas operables mínimas requeridas para no perder el día (OPEX).")
-        
-        if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
-            st.toast('Iniciando simulación topológica...', icon='🚀')
-            
-            with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
-                st.session_state['resultados_finales'] = final
-                st.session_state['simulacion_activa'] = True
-                st.toast('¡Simulación completada con éxito!', icon='✅')
-                
-        if st.session_state['simulacion_activa'] and st.session_state['resultados_finales'] is not None:
-            final = st.session_state['resultados_finales']
-            act_impactadas = final[final['IsRain'] == True]
-            count_impact = len(act_impactadas)
-            
-            tareas_evaluables = final[final['IsSummary'] == False]
-            try:
-                fin_base_max = pd.to_datetime(tareas_evaluables['Fin Base'].dropna()).max()
-                fin_nuevo_max = pd.to_datetime(tareas_evaluables['Fin Nuevo'].dropna()).max()
-                retraso_total_proyecto = (fin_nuevo_max - fin_base_max).days if pd.notna(fin_nuevo_max) and pd.notna(fin_base_max) else 0
-            except: retraso_total_proyecto = 0
-            
-            st.markdown("### 📊 Panel de Resultados Gerenciales")
-            st.markdown(f"""
-            <div class="kpi-container">
-                <div class="kpi-box">
-                    <div class="kpi-title">Actividades Afectadas</div>
-                    <div class="kpi-value">{count_impact} <span>/ {len(tareas_evaluables)} totales</span></div>
-                    <div class="kpi-subtitle">Tareas de campo que sufrieron inyección de EVB.</div>
-                </div>
-                <div class="kpi-box">
-                    <div class="kpi-title">Retraso del Proyecto</div>
-                    <div class="kpi-value {'danger' if retraso_total_proyecto > 0 else ''}">+{max(0, retraso_total_proyecto)} <span>Días Calendario</span></div>
-                    <div class="kpi-subtitle">Desplazamiento final tras recalcular Ruta Crítica.</div>
-                </div>
-                <div class="kpi-box">
-                    <div class="kpi-title">Fecha Final Proyectada</div>
-                    <div class="kpi-value" style="font-size: 2rem;">{fin_nuevo_max.strftime("%d %b %Y") if pd.notna(fin_nuevo_max) else 'N/A'}</div>
-                    <div class="kpi-subtitle">Línea Base original: {fin_base_max.strftime('%d %b %Y') if pd.notna(fin_base_max) else 'N/A'}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # --- AGENTE PRESCRIPTIVO ---
-            if activar_ag:
-                st.markdown("### 🤖 Agente Prescriptivo de Mitigación (IA)")
-                consejos = agente_prescriptivo_mitigacion(final, retraso_total_proyecto)
-                for consejo in consejos:
-                    st.markdown(f'<div class="ia-card">{consejo}</div>', unsafe_allow_html=True)
-            
-            act_reales = final[(final['IsSummary'] == False) & (final['IsMilestone'] == False)]
-            
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva S (Interactiva)", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
-            
-            with tab1:
-                st.markdown("#### Diagrama de Gantt Ajustado")
-                df_gantt = act_reales.copy()
-                df_gantt['Inicio Nuevo'] = pd.to_datetime(df_gantt['Inicio Nuevo'])
-                df_gantt['Fin Nuevo'] = pd.to_datetime(df_gantt['Fin Nuevo'])
-                df_gantt = df_gantt.sort_values('Inicio Nuevo')
-                
-                if not df_gantt.empty:
-                    fig_gantt = px.timeline(df_gantt, x_start="Inicio Nuevo", x_end="Fin Nuevo", y="Actividad",
-                                            color="Días Impacto", color_continuous_scale=px.colors.sequential.Tealgrn,
-                                            hover_data=["Duración Nueva", "Holgura (Días)", "Ruta Crítica"])
-                    fig_gantt.update_yaxes(autorange="reversed")
-                    fig_gantt.update_layout(height=600, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', template='plotly_white')
-                    st.plotly_chart(fig_gantt, use_container_width=True)
-                else:
-                    st.info("No hay datos para generar el Gantt.")
-            
-            with tab2:
-                df_base = act_reales[['Fin Base']].copy().rename(columns={'Fin Base':'Fecha'}).dropna()
-                df_base['Tipo'] = 'Base'
-                df_new = act_reales[['Fin Nuevo']].copy().rename(columns={'Fin Nuevo':'Fecha'}).dropna()
-                df_new['Tipo'] = 'Sugerido'
-                df_s = pd.concat([df_base, df_new])
-                df_s['Count'] = 1
-                df_s['Fecha'] = pd.to_datetime(df_s['Fecha'])
-                df_s = df_s.sort_values('Fecha')
-                df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
-                
-                fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
-                                color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'},
-                                markers=True, line_shape='spline', template='plotly_white')
-                fig_s.update_traces(fill='tozeroy', fillcolor='rgba(175, 30, 45, 0.05)', selector=dict(name='Sugerido'))
-                fig_s.update_traces(fill='tozeroy', fillcolor='rgba(148, 163, 184, 0.05)', selector=dict(name='Base'))
-                fig_s.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', hovermode='x unified', xaxis_title="Fechas de Finalización", yaxis_title="Tareas Completadas",
-                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                fig_s.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#F1F5F9')
-                fig_s.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#F1F5F9')
-                st.plotly_chart(fig_s, use_container_width=True)
-                
-            with tab3:
-                df_hist = final[final['IsRain']==True].copy()
-                if not df_hist.empty:
-                    df_hist['Mes'] = pd.to_datetime(df_hist['Inicio Nuevo']).dt.month_name()
-                    counts_mes = df_hist['Mes'].value_counts().reset_index()
-                    counts_mes.columns = ['Mes', 'Qty']
-                    
-                    fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#0EA5E9'], template='plotly_white')
-                    fig_riesgo.update_traces(textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9, width=0.6)
-                    fig_riesgo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
-                    fig_riesgo.update_yaxes(showgrid=True, gridcolor='#F1F5F9')
-                    st.plotly_chart(fig_riesgo, use_container_width=True)
-                else: st.info("Ninguna actividad superó los umbrales de lluvia seleccionados.")
-                
-            with tab4:
-                df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
-                gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']])
-                gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
-                gb.configure_default_column(resizable=True, filterable=True, sortable=True)
-                gb.configure_column("Actividad", width=400)
-                gb.configure_column("Estado", width=350)
-                gridOptions = gb.build()
-                
-                st.markdown("*(Puedes dar clic en los encabezados para filtrar o mover las columnas)*")
-                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']], 
-                       gridOptions=gridOptions, 
-                       theme='alpine',
-                       columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                       update_mode=GridUpdateMode.NO_UPDATE)
-
-            b_out = io.BytesIO()
-            p_name = st.session_state.get('project_name', 'Proyecto')
-            safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
-            
-            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
-                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
-                                 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
-                                 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
-            
-            with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
-                final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
-                wb = w.book
-                ws = w.sheets['Sugerencias']
-                
-                formato_project = 'dd/mm/yyyy'
-                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
-                fmt_norm = wb.add_format({'border':1})
-                fmt_date = wb.add_format({'num_format': formato_project, 'border':1})
-                fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
-                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': formato_project, 'border':1, 'font_color': 'black'})
-                fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
-                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': formato_project, 'border':1, 'font_color': 'white'})
-                fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
-                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': formato_project, 'border':1})
-                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
-                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': formato_project, 'border':1})
-
-                last_col_idx = len(columnas_exportar) - 1 
-                ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
-                
-                date_cols = [4, 5, 7, 8]
-                rain_date_col = 15
-                
-                for r, row in final.iterrows():
-                    impacto = row['Días Impacto']
-                    is_logic = row['IsLogic']
-                    is_summary = row['IsSummary']
-                    
-                    row_fmt = fmt_norm
-                    row_date_fmt = fmt_date
-                    
-                    if is_summary: row_fmt = fmt_summary; row_date_fmt = fmt_summary_date
-                    elif impacto > 2: row_fmt = fmt_high; row_date_fmt = fmt_high_date
-                    elif impacto > 0: row_fmt = fmt_med; row_date_fmt = fmt_med_date
-                    elif is_logic: row_fmt = fmt_logic; row_date_fmt = fmt_logic_date
-                        
-                    for c, col_name in enumerate(columnas_exportar):
-                        val = row.get(col_name, "")
-                        if pd.isna(val): val = ""
-                        
-                        cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
-                        
-                        if (c in date_cols or c == rain_date_col) and isinstance(val, (datetime, date, pd.Timestamp)):
-                            ws.write_datetime(r+2, c, val, cell_fmt)
-                        else:
-                            ws.write(r+2, c, val, cell_fmt)
-                
-                ws.set_column('C:C', 40); ws.set_column('R:R', 35)
-
-                ws_data = wb.add_worksheet('Datos_Graficos')
-                ws_data.write('A1', 'Fecha'); ws_data.write('B1', 'Acumulado Base'); ws_data.write('C1', 'Acumulado Sugerido')
-                
-                df_s_excel = df_s.pivot_table(index='Fecha', columns='Tipo', values='Acumulado', aggfunc='max').ffill().fillna(0).reset_index()
-                if 'Base' not in df_s_excel.columns: df_s_excel['Base'] = 0
-                if 'Sugerido' not in df_s_excel.columns: df_s_excel['Sugerido'] = 0
-                
-                if not df_s_excel.empty:
-                    for i, r in df_s_excel.iterrows():
-                        date_val = r['Fecha']
-                        if isinstance(date_val, pd.Timestamp): date_val = date_val.date()
-                        ws_data.write(i+1, 0, date_val.strftime('%d/%m/%Y'))
-                        ws_data.write(i+1, 1, r['Base'])
-                        ws_data.write(i+1, 2, r['Sugerido'])
-                
-                ws_data.write('E1', 'Mes'); ws_data.write('F1', 'Cantidad')
-                if not df_hist.empty:
-                    counts = df_hist['Mes'].value_counts().reset_index()
-                    counts.columns = ['Mes', 'Qty']
-                    for i, r in counts.iterrows():
-                        ws_data.write(i+1, 4, r['Mes'])
-                        ws_data.write(i+1, 5, r['Qty'])
-
-                chart_sheet1 = wb.add_chartsheet('Grafico_Curva_S')
-                chart1 = wb.add_chart({'type': 'line'})
-                max_row = len(df_s_excel)
-                if max_row > 0:
-                    chart1.add_series({'name': 'Plan Base', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 1, max_row, 1], 'line': {'color': 'gray'}})
-                    chart1.add_series({'name': 'Con Lluvia', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 2, max_row, 2], 'line': {'color': 'blue'}})
-                chart1.set_title({'name': 'Curva S de Avance (Solo Tareas de Trabajo)'})
-                chart_sheet1.set_chart(chart1)
-
-                if not df_hist.empty:
-                    chart_sheet2 = wb.add_chartsheet('Grafico_Barras')
-                    chart2 = wb.add_chart({'type': 'column'})
-                    max_row_h = len(counts)
-                    chart2.add_series({'name': 'Actividades Afectadas', 'categories': ['Datos_Graficos', 1, 4, max_row_h, 4], 'values': ['Datos_Graficos', 1, 5, max_row_h, 5], 'fill': {'color': '#AF1E2D'}})
-                    chart2.set_title({'name': 'Riesgo por Mes'})
-                    chart_sheet2.set_chart(chart2)
-
-            st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
