@@ -24,9 +24,25 @@ except ImportError:
     st.stop()
 
 # ==============================================================================
+# CONFIGURACIÓN INICIAL DE ESTADOS (SESSION STATE)
+# ==============================================================================
+# Se inicializan los estados para que la función callback pueda modificarlos
+if 'jornada_state' not in st.session_state: st.session_state['jornada_state'] = (8, 17)
+if 'nlp_state' not in st.session_state: st.session_state['nlp_state'] = True
+if 'ml_state' not in st.session_state: st.session_state['ml_state'] = True
+if 'ag_state' not in st.session_state: st.session_state['ag_state'] = True
+if 'temp_state' not in st.session_state: st.session_state['temp_state'] = 30.0
+if 'hum_state' not in st.session_state: st.session_state['hum_state'] = 85.0
+if 'pr_state' not in st.session_state: st.session_state['pr_state'] = 65
+if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 5.0
+if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 3.0
+if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Ajuste manual de las variables del proyecto."
+
+# ==============================================================================
 # DICCIONARIO MAESTRO DE COORDENADAS (GLOBAL)
 # ==============================================================================
 COORDENADAS_RD = {
+    "Santo Domingo Este - PROPACC LAS DAMAS": (18.4758, -69.7781),
     "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
     "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
     "Distrito Nacional - Santo Domingo (Centro)": (18.4861, -69.9312), "Duarte - San Francisco de Macorís (Cabecera)": (19.3009, -70.2525),
@@ -42,8 +58,119 @@ COORDENADAS_RD = {
     "San José de Ocoa - Ocoa (Cabecera)": (18.5438, -70.5070), "San Juan - San Juan de la Maguana (Cabecera)": (18.8059, -71.2299),
     "San Pedro de Macorís - SPM (Cabecera)": (18.4637, -69.3041), "Sánchez Ramírez - Cotuí (Cabecera)": (19.0512, -70.1468),
     "Santiago - Santiago de los Caballeros (Cabecera)": (19.4517, -70.6970), "Santiago Rodríguez - Sabaneta (Cabecera)": (19.4791, -71.3457),
-    "Santo Domingo - Santo Domingo Este": (18.4861, -69.8500), "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
+    "Valverde - Mao (Cabecera)": (19.5517, -71.0779)
 }
+
+# ==============================================================================
+# BASE DE DATOS DE ENSAYOS (PRESETS DE VALIDACIÓN)
+# ==============================================================================
+PRESETS_MODELOS = {
+    "Personalizado (Ajuste Manual)": {
+        "desc": "Modo de operación libre. Ajuste los deslizadores según su criterio profesional.",
+    },
+    "01: CFX-VAL-01-BASE (Determinista Puro)": {
+        "nlp": False, "ml": False, "pr": 100, "ur": 50.0, "ut": 1.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Baseline determinista. Capa IA desactivada y umbrales inalcanzables. El motor CPM arrojará una inyección EVB nula (Cero desviación)."
+    },
+    "02: CFX-VAL-02-CICLO (Sensibilidad Otoño)": {
+        "nlp": True, "ml": True, "pr": 40, "ur": 1.5, "ut": 3.0, "temp": 28.5, "hum": 74.8, "jornada": (8, 17),
+        "desc": "Simula los meses críticos de ciclones (Sept-Oct). Alta humedad y captura de eventos pluviométricos convectivos."
+    },
+    "03: CFX-VAL-03-ESTIAJE (Ventana Seca)": {
+        "nlp": True, "ml": True, "pr": 70, "ur": 5.0, "ut": 2.0, "temp": 26.4, "hum": 65.6, "jornada": (8, 17),
+        "desc": "Simula Enero-Febrero. Reconoce la 'ventana seca' reduciendo drásticamente el EVB. Valida la no-penalización del modelo."
+    },
+    "04: CFX-VAL-04-OPEX (Estrés Logístico)": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Intolerancia a la ineficiencia. Si la lluvia drena > 2.5h, se pierde el día completo para proteger los costos de maquinaria (OPEX)."
+    },
+    "05: CFX-VAL-05-HEAT (Aceleración Evaporación)": {
+        "nlp": True, "ml": True, "pr": 50, "ur": 3.5, "ut": 2.5, "temp": 32.0, "hum": 55.0, "jornada": (8, 17),
+        "desc": "Radiación extrema. Random Forest computa Tr mínimo. Tras una lluvia corta, el terreno granular drena rápido y se reanuda la operación."
+    },
+    "06: CFX-VAL-06-VAGUADA (Bloqueo Geotécnico)": {
+        "nlp": True, "ml": True, "pr": 30, "ur": 1.0, "ut": 4.0, "temp": 24.5, "hum": 95.0, "jornada": (8, 17),
+        "desc": "Saturación extrema. Baja temperatura y altísima humedad anulan la evapotranspiración. Genera parálisis prolongadas (>48h)."
+    },
+    "07: CFX-VAL-07-NLP (Auditoría Semántica)": {
+        "nlp": False, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Desactiva NLP. El modelo recurre a la heurística básica de expresiones regulares, perdiendo precisión en la deducción del Coeficiente de Impacto."
+    },
+    "08: CFX-VAL-08-ML (Auditoría Termodinámica)": {
+        "nlp": True, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Desactiva Random Forest. El modelo utiliza retrasos fijos ignorando el microclima. Expone la sobre o subestimación sin Machine Learning."
+    },
+    "09: CFX-VAL-09-OVERTIME (Turnos Extendidos)": {
+        "nlp": True, "ml": True, "pr": 50, "ur": 4.0, "ut": 1.5, "temp": 28.2, "hum": 72.0, "jornada": (7, 18),
+        "desc": "Expande la jornada de 11 horas (7:00 a 18:00). Al incrementar el divisor Hw, se diluye el impacto porcentual de una lluvia matutina."
+    },
+    "10: CFX-VAL-10-COLLAPSE (Worst-Case Scenario)": {
+        "nlp": True, "ml": True, "pr": 20, "ur": 0.5, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
+        "desc": "Estrés sistémico. Captura trazas mínimas de lluvia y penaliza agresivamente la eficiencia. Demuestra la propagación del algoritmo de Kahn al extremo."
+    },
+    "11: CFX-VAL-11-CLAY (Sensibilidad Arcillas)": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Valida suelos A-7-6. Observa cómo el algoritmo castiga las tareas de movimiento de tierras con altos Tiempos de Recuperación (Tr)."
+    },
+    "12: CFX-VAL-12-GRAN (Sensibilidad Granulares)": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 5.0, "ut": 2.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Valida suelos A-1-a. Alta permisividad pluvial que demuestra la rápida infiltración darciana en subbases respecto a arcillas cohesivas."
+    },
+    "13: CFX-VAL-13-DEPR (Depresión Tropical)": {
+        "nlp": True, "ml": True, "pr": 20, "ur": 0.8, "ut": 7.0, "temp": 25.0, "hum": 85.0, "jornada": (8, 17),
+        "desc": "Baja presión atmosférica. Prescribe la paralización total de los frentes a cielo abierto al descender drásticamente la probabilidad y el umbral de horas."
+    },
+    "14: CFX-VAL-14-SHIFT (Optimización 11H)": {
+        "nlp": True, "ml": True, "pr": 55, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18),
+        "desc": "Ensayo de Fast-Tracking con mitigación logística para estabilizar el avance mediante la expansión del horario."
+    },
+    "15: CFX-VAL-15-TEMP (Calor Extremo - Sequía)": {
+        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 50.0, "jornada": (8, 17),
+        "desc": "Lleva la variable temperatura a sus límites para forzar el secado instantáneo y validar que el algoritmo no aplique EVB en tareas granulares."
+    },
+    "16: CFX-VAL-16-HUM (Punto de Rocío/Niebla)": {
+        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 24.0, "hum": 98.0, "jornada": (8, 17),
+        "desc": "Anula el déficit de presión de vapor. Audita la capacidad del ML de frenar tareas netamente por humedad sin requerir precipitaciones extremas."
+    },
+    "17: CFX-VAL-17-CRIT (Cuello de Botella Forzado)": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Prueba de propagación lineal. Unidades críticas en secuencia mostrarán el empuje exacto a lo largo de toda la matriz de tiempo del proyecto."
+    },
+    "18: CFX-VAL-18-RES (Reasignación Restringida)": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Evalúa el comportamiento del Agente Prescriptivo limitando las opciones logísticas. Genera advertencias más conservadoras de mitigación."
+    },
+    "19: CFX-VAL-19-SEASON (Variación Estacional)": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
+        "desc": "Demuestra gráficamente la diferencia de volumen estocástico evaluando la base ERA5 bajo las variaciones cíclicas del año civil."
+    },
+    "20: CFX-VAL-20-SWAN (Cisne Negro)": {
+        "nlp": True, "ml": True, "pr": 10, "ur": 0.1, "ut": 8.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
+        "desc": "Punto de quiebre. Máxima fragilidad matemática. Valida la estabilidad numérica asintótica evitando que el sistema colapse por recursión."
+    }
+}
+
+# Callback para aplicar el preset
+def aplicar_preset():
+    seleccion = st.session_state.selector_preset
+    st.session_state['desc_actual'] = PRESETS_MODELOS[seleccion]['desc']
+    
+    if seleccion != "Personalizado (Ajuste Manual)":
+        p = PRESETS_MODELOS[seleccion]
+        st.session_state.nlp_state = p['nlp']
+        st.session_state.ml_state = p['ml']
+        st.session_state.pr_state = p['pr']
+        st.session_state.ur_state = float(p['ur'])
+        st.session_state.ut_state = float(p['ut'])
+        st.session_state.temp_state = float(p['temp'])
+        st.session_state.hum_state = float(p['hum'])
+        st.session_state.jornada_state = p['jornada']
+        
+        # Forzar Coordenadas a Propacc Las Damas
+        st.session_state.combo_ubicacion = "Santo Domingo Este - PROPACC LAS DAMAS"
+        st.session_state.lat_actual = 18.4758
+        st.session_state.lon_actual = -69.7781
+        st.session_state.ubicacion_nombre = "Santo Domingo Este - PROPACC LAS DAMAS"
 
 # ==============================================================================
 # MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING
@@ -488,27 +615,14 @@ st.markdown("""
         #MainMenu {visibility: hidden;} footer {visibility: hidden;}
         [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
         
-        /* Estilos generales de botones */
         .stButton>button { background-color: #AF1E2D; color: white !important; border-radius: 8px; border: none; transition: all 0.3s ease; font-weight: 600; padding: 0.5rem 1rem; box-shadow: 0 4px 6px -1px rgba(175, 30, 45, 0.2); }
         .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(175, 30, 45, 0.3); background-color: #901924; }
         
-        /* Estilo minimalista para el botón de descarga del manual en el sidebar */
         [data-testid="stSidebar"] .stDownloadButton > button {
-            background-color: #64748B !important;
-            color: #FFFFFF !important;
-            border: 1px solid #475569 !important;
-            border-radius: 6px !important;
-            font-weight: 500 !important;
-            font-size: 0.9rem !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            transition: background-color 0.2s ease !important;
-            margin-top: 20px;
+            background-color: #64748B !important; color: #FFFFFF !important; border: 1px solid #475569 !important; border-radius: 6px !important;
+            font-weight: 500 !important; font-size: 0.9rem !important; width: 100% !important; box-shadow: none !important; transition: background-color 0.2s ease !important; margin-top: 20px;
         }
-        [data-testid="stSidebar"] .stDownloadButton > button:hover {
-            background-color: #475569 !important;
-            border-color: #334155 !important;
-        }
+        [data-testid="stSidebar"] .stDownloadButton > button:hover { background-color: #475569 !important; border-color: #334155 !important; }
 
         .kpi-container { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
         .kpi-box { background-color: #FFFFFF; border-radius: 12px; padding: 24px; flex: 1; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); border: 1px solid #F1F5F9; transition: transform 0.2s ease; position: relative; overflow: hidden; }
@@ -535,9 +649,15 @@ if 'resultados_finales' not in st.session_state: st.session_state['resultados_fi
 # INTERFAZ PRINCIPAL Y BARRA LATERAL
 # ==============================================================================
 with st.sidebar:
+    st.header("🗂️ Casos de Ensayo (Presets)")
+    st.selectbox("Seleccionar Modelo de Validación:", list(PRESETS_MODELOS.keys()), key="selector_preset", on_change=aplicar_preset)
+    st.info(f"ℹ️ **Info:** {st.session_state['desc_actual']}")
+    st.markdown("---")
+    
     st.header("⚙️ Configuración Logística")
     st.subheader("1. Horario de Obra")
-    h_inicio, h_fin = st.slider("Jornada", 0, 23, (8, 17))
+    h_inicio, h_fin = st.slider("Jornada", 0, 23, key='jornada_state')
+    
     st.subheader("2. Días Laborables")
     dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie"])
     mapa_d = {"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}
@@ -545,14 +665,14 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("🧠 Capa Cognitiva e Inteligencia Artificial")
-    activar_nlp = st.toggle("Procesamiento de Lenguaje Natural (Clasificación Semántica)", value=True)
-    activar_ml = st.toggle("Motor Random Forest (Tiempo de Recuperación Tr)", value=True)
-    activar_ag = st.toggle("Agente Prescriptivo (Mitigación Topológica)", value=True)
+    activar_nlp = st.toggle("Procesamiento de Lenguaje Natural (NLP)", key='nlp_state')
+    activar_ml = st.toggle("Motor Random Forest (Tiempo Secado Tr)", key='ml_state')
+    activar_ag = st.toggle("Agente Prescriptivo (Mitigación)", key='ag_state')
     
     st.markdown("---")
-    st.subheader("🌡️ Termodinámica (Variables de Inferencia Continua)")
-    temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, 30.0, 0.5, help="Variable predictora para el cálculo de evaporación en el Random Forest.")
-    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, 85.0, 1.0, help="Déficit de presión de vapor para modelar el secado del estrato geotécnico.")
+    st.subheader("🌡️ Termodinámica (Inferencia Continua)")
+    temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, step=0.5, key='temp_state')
+    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, step=1.0, key='hum_state')
 
     # ---------------- DESCARGA DE MANUAL (AL FINAL DE LA BARRA LATERAL) ----------------
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -565,7 +685,7 @@ with st.sidebar:
             file_name="CHRONOFLUX_USER_MANUAL.pdf",
             mime="application/pdf",
             use_container_width=True,
-            help="Descarga el manual operativo y de blindaje forense en formato PDF."
+            help="Descarga el manual operativo en formato PDF."
         )
     except FileNotFoundError:
         st.download_button(
@@ -574,7 +694,7 @@ with st.sidebar:
             file_name="error.txt",
             use_container_width=True,
             disabled=True,
-            help="Coloque el archivo CHRONOFLUX_USER_MANUAL.pdf en la raíz de la aplicación."
+            help="Coloque el archivo CHRONOFLUX_USER_MANUAL.pdf en la raíz."
         )
 
 # ---------------- BANNER DINÁMICO DE RED (PARTICLES.JS) ----------------
@@ -629,6 +749,12 @@ def actualizar_desde_dropdown():
     coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
     st.session_state['lat_actual'] = coords[0]; st.session_state['lon_actual'] = coords[1]
     st.session_state['ubicacion_nombre'] = st.session_state.combo_ubicacion
+    # Si mueve el dropdown manualmente, resetea el preset
+    if st.session_state.selector_preset != "Personalizado (Ajuste Manual)":
+        st.session_state.selector_preset = "Personalizado (Ajuste Manual)"
+        st.session_state.desc_actual = PRESETS_MODELOS["Personalizado (Ajuste Manual)"]['desc']
+
+if 'combo_ubicacion' not in st.session_state: st.session_state['combo_ubicacion'] = "Santo Domingo Este - PROPACC LAS DAMAS"
 
 st.selectbox("📍 Buscar Ubicación de Proyecto:", sorted(list(COORDENADAS_RD.keys())), key='combo_ubicacion', on_change=actualizar_desde_dropdown)
 st.markdown(f"**Coordenadas de Análisis:** `Latitud: {st.session_state['lat_actual']:.4f}, Longitud: {st.session_state['lon_actual']:.4f}`")
@@ -725,9 +851,9 @@ if uploaded:
         st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
         
         c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, 65, help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
-        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, 5.0, 0.5, help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, 3.0, 0.5, help="Umbral Operativo (Ut). Si la fracción de horas operables es menor a este umbral, se pierde la jornada completa protegiendo el OPEX.")
+        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, key='pr_state', help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
+        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, step=0.5, key='ur_state', help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
+        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, step=0.5, key='ut_state', help="Umbral Operativo (Ut). Horas operables mínimas requeridas para no perder el día (OPEX).")
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             st.toast('Iniciando simulación topológica...', icon='🚀')
