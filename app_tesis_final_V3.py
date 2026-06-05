@@ -232,11 +232,45 @@ def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     if evb_total < 3:
         return ["✅ **Red Logística Estable:** El riesgo climático actual es bajo y puede ser absorbido por las holguras normales del cronograma."]
     
-    tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 24.0]
+    # Nodos Bloqueados: alto tiempo de secado (ΩB)
+    tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 24.0].copy()
+    # Nodos Refugio: tareas estructurales con Ic bajo (ΩR)
+    refugios = df_tareas[pd.to_numeric(df_tareas['Ic_Estimado'], errors='coerce') <= 1.0].copy()
+
     if not tierras.empty:
         peor_tarea = tierras.loc[pd.to_numeric(tierras['Días Impacto'], errors='coerce').idxmax()]
-        sugerencias.append(f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella logístico. (Alto Tiempo de Secado inferido por IA).")
-        sugerencias.append("👉 **Estrategia Logística Sugerida:** Evite mantener los recursos inactivos. Se recomienda reasignar temporalmente la maquinaria de este frente hacia partidas estructurales.")
+        sugerencias.append(
+            f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella logístico. (Alto Tiempo de Secado inferido por IA)."
+        )
+
+        # W-02 CORRECCIÓN: verificar solapamiento temporal (Ec. 6.10) antes de prescribir reasignación
+        # H(vb, vr) = 1 si max(ES'b, ES'r) <= min(EF'b, EF'r)
+        refugio_solapado = None
+        if not refugios.empty:
+            eb_ini = pd.to_datetime(peor_tarea.get('Inicio Nuevo'), errors='coerce')
+            eb_fin = pd.to_datetime(peor_tarea.get('Fin Nuevo'), errors='coerce')
+            if pd.notna(eb_ini) and pd.notna(eb_fin):
+                for _, ref in refugios.iterrows():
+                    er_ini = pd.to_datetime(ref.get('Inicio Nuevo'), errors='coerce')
+                    er_fin = pd.to_datetime(ref.get('Fin Nuevo'), errors='coerce')
+                    if pd.notna(er_ini) and pd.notna(er_fin):
+                        # Condición de solapamiento: max(ini_b, ini_r) <= min(fin_b, fin_r)
+                        if max(eb_ini, er_ini) <= min(eb_fin, er_fin):
+                            refugio_solapado = ref
+                            break
+
+        if refugio_solapado is not None:
+            sugerencias.append(
+                f"👉 **Estrategia Logística Sugerida (Ec. 6.10 — Solapamiento Confirmado):** "
+                f"Reasignar temporalmente la maquinaria hacia el nodo refugio estructural "
+                f"**'{refugio_solapado['Actividad']}'** (Ic={refugio_solapado['Ic_Estimado']}), "
+                f"cuya ventana operativa se solapa con el período de parálisis."
+            )
+        else:
+            sugerencias.append(
+                "⚠️ **Sin Nodo Refugio Disponible:** No se detectaron frentes estructurales con ventana operativa solapada al período de parálisis. "
+                "Evaluar reprogramación de inicio del frente afectado o movilización de recursos a otro proyecto."
+            )
     return sugerencias
 
 # ==============================================================================
@@ -384,8 +418,22 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# MOTOR CPM ESTOCÁSTICO V5 (LÓGICA TERMODINÁMICA Y ESTOCÁSTICA CORREGIDA)
+# MOTOR CPM ESTOCÁSTICO V5 — CORRECCIONES DE AUDITORÍA LÓGICA APLICADAS
 # ==============================================================================
+
+# C-03: Función auxiliar para calcular desplazamiento en días HÁBILES (no calendario)
+def contar_dias_habiles_shift(desde, hasta, dias_idx, feriados):
+    """Cuenta cuántos días hábiles hay entre 'desde' (exclusive) y 'hasta' (inclusive)."""
+    if desde is None or hasta is None or hasta <= desde:
+        return 0
+    c = desde
+    n = 0
+    while c < hasta:
+        c += timedelta(days=1)
+        if es_habil(c, dias_idx, feriados):
+            n += 1
+    return n
+
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
     G = nx.DiGraph()
     for _, row in df.iterrows():
@@ -424,7 +472,8 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                     fin_base_pred = G.nodes[p]['data']['Finish_XML']
                     fin_base_pred = pd.to_datetime(fin_base_pred).date() if pd.notna(fin_base_pred) else None
                     if fin_base_pred:
-                        shift = (fecha_fin_calculada[p] - fin_base_pred).days
+                        # C-03 CORRECCIÓN: desplazamiento en días HÁBILES, no días calendario
+                        shift = contar_dias_habiles_shift(fin_base_pred, fecha_fin_calculada[p], dias_idx, feriados)
                         if shift > max_shift_dias: max_shift_dias = shift
                             
         new_start = start_dt
@@ -450,192 +499,32 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             lluvia_acumulada_terreno = 0.0
             horas_jornada = float(h_fin - h_inicio) if h_fin > h_inicio else 8.0
             
-            # Semilla pseudoaleatoria basada en el ID de la tarea para repetibilidad
-            np.random.seed(tid)
-            
             while work_done < work_needed:
                 if es_habil(cursor, dias_idx, feriados):
                     k = cursor.strftime('%m-%d')
                     if k in clima:
                         h = clima[k]
-                        prob_hist = h['probabilidad'] # Probabilidad de 0 a 1
-                        lluvia_promedio = h['mm_promedio']
+                        prob_hist = h['probabilidad']
+                        lluvia_dia = h['mm_promedio']
                         
-                        dias_evaluados += 1
+                        rain_total += lluvia_dia
                         prob_acumulada += prob_hist
-                        rain_total += lluvia_promedio
+                        dias_evaluados += 1
                         
                         # Tasa de evaporación constante (Memoria del suelo)
                         tasa_evaporacion = max(0.1, (temp_global / 10.0) * ((100.0 - hum_global) / 20.0))
-                        lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + lluvia_promedio - tasa_evaporacion)
+                        lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + lluvia_dia - tasa_evaporacion)
+                        # W-01 CORRECCIÓN: si el terreno volvió a nivel óptimo, resetear completamente
+                        # evita que lluvia acumulada de días pasados infle el Tr en períodos secos
+                        if lluvia_acumulada_terreno <= 0.0:
+                            lluvia_acumulada_terreno = 0.0
                         
                         # =========================================================
-                        # EL PARCHE ESTOCÁSTICO (MONTECARLO) Y OPEX
+                        # CORRECCIONES DE AUDITORÍA LÓGICA (V5)
                         # =========================================================
-                        # En lugar de usar la probabilidad para filtrar, usamos la probabilidad
-                        # configurada (prob_min) como umbral de tolerancia. Si el histórico supera
-                        # la tolerancia, se dispara el impacto.
-                        
-                        # Tirada de dados estocástica: Si un número al azar es menor a la prob histórica,
-                        # asumimos que llovió ESTE día de la simulación.
-                        dia_lluvioso = np.random.random() < prob_hist
-                        
-                        # Solo evaluamos si el clima es lo suficientemente agresivo (Probabilidad o Lluvia real)
-                        if (prob_hist >= prob_min) or (dia_lluvioso and lluvia_promedio >= mm_min):
-                            stats_mm = max(stats_mm, max(lluvia_promedio, mm_min))
-                            if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
-                            
-                            # La IA calcula el tiempo de secado usando la lluvia ACUMULADA y el Clima
-                            tr_horas, ic_dinamico = calcular_tr_y_ic_dinamico(max(lluvia_acumulada_terreno, mm_min), temp_global, hum_global, ic_base, use_ml)
-                            tr_horas_max = max(tr_horas_max, tr_horas)
-                            ic_dinamico_max = max(ic_dinamico_max, ic_dinamico)
-                            
-                            # Matemática de horas viables
-                            # Asumimos que llovió al menos la intensidad de umbral (mm_min) o el histórico, el mayor.
-                            lluvia_eval = max(lluvia_promedio, mm_min)
-                            horas_lluvia = lluvia_eval / 5.0  # Asume intensidad 5mm/h
-                            horas_restantes = horas_jornada - (horas_lluvia + tr_horas)
-                            
-                            # LA INDICATRIZ FINANCIERA (Ut) - EVALUACIÓN BINARIA
-                            if horas_restantes < umbral_horas:
-                                # Se cancela el día. Penalización OPEX TOTAL (1.0 * impacto constructivo)
-                                retraso_teorico_dias += (1.0 * ic_dinamico)
-                            else:
-                                # Hay calor. Secó rápido. Quedan suficientes horas útiles.
-                                pass 
-                        # =========================================================
-                                
-                work_done += 1 
-                cursor += timedelta(days=1)
-                
-            stats_prob = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
-                
-            nota_cuantizacion = ""
-            total_cuantizado = base_dur_float
-            if retraso_teorico_dias > 0:
-                total_cuantizado = base_dur_float + math.ceil(retraso_teorico_dias)
-                retraso_cuantizado = total_cuantizado - base_dur_float
-                if retraso_cuantizado != round(retraso_teorico_dias, 2):
-                    nota_cuantizacion = f" (Q={round(retraso_cuantizado, 2)}d)"
-            else:
-                retraso_cuantizado = 0.0
-
-            if note == "OK" and retraso_cuantizado > 0:
-                note = f"Impacto Clima{nota_cuantizacion} [Ic={ic_dinamico_max}]"
-            elif note != "OK" and retraso_cuantizado > 0:
-                note += f" | Impacto Clima{nota_cuantizacion} [Ic={ic_dinamico_max}]"
-            
-            dias_a_avanzar = math.ceil(total_cuantizado) if total_cuantizado > 0 else 1
-            cursor_fin = new_start; dias_avanzados = 1
-            while dias_avanzados < dias_a_avanzar:
-                cursor_fin += timedelta(days=1)
-                if es_habil(cursor_fin, dias_idx, feriados): dias_avanzados += 1
-            
-            new_finish = cursor_fin; new_dur_float = total_cuantizado
-            is_pushed_by_pred = (new_start > start_dt) if start_dt else False
-            if not is_pushed_by_pred and retraso_cuantizado == 0 and finish_dt:
-                new_finish = finish_dt; new_dur_float = base_dur_float
-            
-        elif row['IsMilestone']:
-            new_dur_float = 0; stats_prob = 0
-            if new_start: new_finish = new_start
-                
-        fecha_fin_calculada[tid] = new_finish
-        G.nodes[tid]['ES'] = new_start; G.nodes[tid]['EF'] = new_finish; G.nodes[tid]['dur_ajustada'] = new_dur_float
-
-        res_temp[tid] = {
-            'ID': tid, 'WBS': row['WBS'], 'Actividad': row['Name'], 'IsSummary': row['IsSummary'], 'IsMilestone': row['IsMilestone'],
-            'Duración Base': redondear_duracion(base_dur_float), 'Inicio Base': start_dt, 'Fin Base': finish_dt,
-            'Duración Nueva': redondear_duracion(new_dur_float), 'Inicio Nuevo': new_start, 'Fin Nuevo': new_finish,
-            'Tr (Secado/Horas)': round(tr_horas_max, 1), 'Ic_Estimado': round(ic_dinamico_max, 2),
-            'Pred. Orig': row['OrigPreds'], 'Pred. Nueva': new_preds,
-            'Prob. Lluvia': f"{stats_prob:.0%}" if stats_prob > 0 else "-", 'mm Lluvia Max': round(stats_mm, 1) if stats_mm > 0 else "-",
-            'Lluvia Total Acum (mm)': round(rain_total, 1), 'Fecha Última Lluvia': last_rain_date if last_rain_date else "-",
-            'Días Impacto': redondear_duracion(new_dur_float) - redondear_duracion(base_dur_float), 'Estado': note,
-            'IsRain': ((redondear_duracion(new_dur_float) - redondear_duracion(base_dur_float)) > 0), 'IsLogic': (new_preds != row['OrigPreds']) 
-        }
-
-    valid_efs = [data['EF'] for n, data in G.nodes(data=True) if data.get('EF') is not None]
-    max_project_ef = max(valid_efs) if valid_efs else None
-
-    for tid in reversed(orden):
-        node = G.nodes[tid]
-        if node.get('EF') is None: continue
-
-        succs = list(G.successors(tid))
-        if not succs: node['LF'] = max_project_ef
-        else:
-            valid_ls = [G.nodes[s].get('LS') for s in succs if G.nodes[s].get('LS') is not None]
-            if valid_ls:
-                min_succ_ls = min(valid_ls); cursor = min_succ_ls - timedelta(days=1)
-                while not es_habil(cursor, dias_idx, feriados): cursor -= timedelta(days=1)
-                node['LF'] = cursor
-            else: node['LF'] = max_project_ef
-
-        dur = math.ceil(node.get('dur_ajustada', 0)); cursor = node['LF']
-        if dur > 1:
-            days_stepped = 1
-            while days_stepped < dur:
-                cursor -= timedelta(days=1)
-                if es_habil(cursor, dias_idx, feriados): days_stepped += 1
-        node['LS'] = cursor
-
-        ef = node['EF']; lf = node['LF']; tf_days = 0
-        if ef and lf and lf >= ef:
-            c = ef
-            while c < lf:
-                c += timedelta(days=1)
-                if es_habil(c, dias_idx, feriados): tf_days += 1
-        elif ef and lf and lf < ef:
-            c = lf
-            while c < ef:
-                c += timedelta(days=1)
-                if es_habil(c, dias_idx, feriados): tf_days -= 1
-
-        node['TF'] = tf_days; node['is_critical'] = (tf_days <= 0)
-        res_temp[tid]['Holgura (Días)'] = tf_days; res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
-        impact = res_temp[tid]['Días Impacto']
-        res_temp[tid]['Nivel Riesgo'] = "Crítico (Mutada)" if (tf_days <= 0 and impact > 0) else ("Alto" if impact > 2 else "Normal")
-
-    df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
-    df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
-    df_res['Tr (Secado/Horas)'] = df_res['Tr (Secado/Horas)'].astype(object)
-
-    for i in df_res[df_res['IsSummary'] == True].index:
-        wbs_val = str(df_res.at[i, 'WBS']); wbs_prefix = wbs_val + '.'
-        children = df_res[(df_res['WBS'].astype(str).str.startswith(wbs_prefix)) & (df_res['IsSummary'] == False)]
-        if children.empty and (df_res.at[i, 'ID'] == 0 or wbs_val == '0' or wbs_val == 'None'):
-            children = df_res[df_res['IsSummary'] == False]
-            
-        if not children.empty:
-            min_start = children['Inicio Nuevo'].dropna().min()
-            max_finish = children['Fin Nuevo'].dropna().max()
-            if pd.notna(min_start): df_res.at[i, 'Inicio Nuevo'] = min_start
-            if pd.notna(max_finish): df_res.at[i, 'Fin Nuevo'] = max_finish
-            
-            if pd.notna(min_start) and pd.notna(max_finish) and max_finish >= min_start:
-                c_dias = 0; cursor = min_start
-                while cursor <= max_finish:
-                    if es_habil(cursor, dias_idx, feriados): c_dias += 1
-                    cursor += timedelta(days=1)
-                
-                df_res.at[i, 'Duración Nueva'] = c_dias
-                impacto_resumen = c_dias - df_res.at[i, 'Duración Base']
-                df_res.at[i, 'Días Impacto'] = impacto_resumen
-                df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Normal"
-            else: df_res.at[i, 'Días Impacto'] = 0; df_res.at[i, 'Nivel Riesgo'] = "N/A"
-                
-            df_res.at[i, 'Prob. Lluvia'] = "-"; df_res.at[i, 'mm Lluvia Max'] = "-"
-            df_res.at[i, 'Holgura (Días)'] = "-"; df_res.at[i, 'Ruta Crítica'] = "-"; df_res.at[i, 'Tr (Secado/Horas)'] = "-"
-            
-    df_res['ID'] = pd.to_numeric(df_res['ID'], errors='coerce')
-    return df_res.sort_values('ID').reset_index(drop=True)
-                        
-                        # =========================================================
-                        # EL PARCHE APLICADO AQUÍ (Línea crítica para Ut y Pr)
-                        # =========================================================
-                        # Compuerta de Tolerancia Pluviométrica relajada (OR) para forzar evaluación OPEX
-                        if prob_hist >= prob_min or lluvia_dia >= mm_min:
+                        # W-05 CORRECCIÓN: AND lógico (intersección C1∩C2) conforme a Ec. 5.4.3
+                        # La condición requiere AMBAS: probabilidad histórica Y intensidad mínima
+                        if prob_hist >= prob_min and lluvia_dia >= mm_min:
                             stats_mm = max(stats_mm, lluvia_dia)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
                             
@@ -644,18 +533,17 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                             tr_horas_max = max(tr_horas_max, tr_horas)
                             ic_dinamico_max = max(ic_dinamico_max, ic_dinamico)
                             
-                            # Matemática de horas viables forzada
+                            # Matemática de horas viables
                             lluvia_eval = max(lluvia_dia, mm_min)
                             horas_lluvia = lluvia_eval / 5.0  # Asume intensidad 5mm/h
                             horas_restantes = horas_jornada - (horas_lluvia + tr_horas)
                             
-                            # LA INDICATRIZ FINANCIERA (Ut) - EVALUACIÓN BINARIA
+                            # LA INDICATRIZ FINANCIERA (Hw_min) - EVALUACIÓN BINARIA
+                            # Hw_min: horas mínimas de jornada viables para encender la flotilla
                             if horas_restantes < umbral_horas:
-                                # Se cancela el día. Penalización OPEX TOTAL (1.0 * impacto constructivo)
-                                retraso_teorico_dias += (1.0 * ic_dinamico)
-                            else:
-                                # Hay calor. Secó rápido. Quedan suficientes horas útiles.
-                                pass 
+                                # C-01 CORRECCIÓN: ponderar por prob_hist (P(d|Ur)) conforme a Ec. 5.9
+                                # EVBi += P(d|Ur) × Q(Ic)  — no se usa 1.0 fijo
+                                retraso_teorico_dias += (prob_hist * ic_dinamico)
                         # =========================================================
                                 
                 work_done += 1 
@@ -748,7 +636,24 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         node['TF'] = tf_days; node['is_critical'] = (tf_days <= 0)
         res_temp[tid]['Holgura (Días)'] = tf_days; res_temp[tid]['Ruta Crítica'] = "Sí" if tf_days <= 0 else "No"
         impact = res_temp[tid]['Días Impacto']
-        res_temp[tid]['Nivel Riesgo'] = "Crítico (Mutada)" if (tf_days <= 0 and impact > 0) else ("Alto" if impact > 2 else "Normal")
+        inicio_nuevo = res_temp[tid].get('Inicio Nuevo')
+        inicio_base = res_temp[tid].get('Inicio Base')
+        # C-04 CORRECCIÓN: distinguir "Mutada por lluvia directa" vs "Empujada por cascada"
+        fue_empujada_sin_lluvia = (
+            tf_days <= 0 and
+            impact == 0 and
+            inicio_nuevo is not None and
+            inicio_base is not None and
+            inicio_nuevo > inicio_base
+        )
+        if fue_empujada_sin_lluvia:
+            res_temp[tid]['Nivel Riesgo'] = "Crítico (Empujada)"
+        elif tf_days <= 0 and impact > 0:
+            res_temp[tid]['Nivel Riesgo'] = "Crítico (Mutada)"
+        elif impact > 2:
+            res_temp[tid]['Nivel Riesgo'] = "Alto"
+        else:
+            res_temp[tid]['Nivel Riesgo'] = "Normal"
 
     df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
@@ -787,7 +692,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
 # ==============================================================================
 # CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico V5", layout="wide", page_icon="⚡")
 
 st.markdown("""
     <style>
@@ -861,7 +766,7 @@ with st.sidebar:
 banner_html = """
 <div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
     <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
-        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI</h1>
+        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V5 — Auditoría Lógica Aplicada</span></h1>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
@@ -977,9 +882,18 @@ if uploaded:
         st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
         
         c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, key='pr_state') / 100.0
-        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, step=0.5, key='ur_state')
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, step=0.5, key='ut_state')
+        prob = c_p.slider("Probabilidad de Lluvia (%) — Pr", 0, 100, key='pr_state') / 100.0
+        mm = c_m.slider("Intensidad mínima (mm/día) — Ur", 0.0, 50.0, step=0.5, key='ur_state')
+        umbral_horas = c_u.slider(
+            "Horas mínimas de jornada viable — Hw_min",
+            1.0, 8.0, step=0.5, key='ut_state',
+            help=(
+                "Horas útiles mínimas que deben quedar en la jornada tras la lluvia y el secado "
+                "para justificar encender la flotilla. Si las horas restantes son menores a este valor, "
+                "el día se declara perdido (Indicatriz de Heaviside = 1). "
+                "Nota: este parámetro operacionaliza la compuerta logística Ut de la tesis."
+            )
+        )
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
@@ -1025,7 +939,7 @@ if uploaded:
             
             act_reales = final[(final['IsSummary'] == False) & (final['IsMilestone'] == False)]
             
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva S", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva de Avance Físico Acumulado", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
             
             with tab1:
                 df_gantt = act_reales.copy()
@@ -1049,7 +963,14 @@ if uploaded:
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
                 fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'}, markers=True, template='plotly_white')
+                fig_s.update_layout(yaxis_title="Tareas Terminadas (Acumulado)", xaxis_title="Fecha de Finalización")
                 st.plotly_chart(fig_s, use_container_width=True)
+                st.caption(
+                    "📌 **Nota metodológica:** Esta gráfica representa el avance físico acumulado de tareas "
+                    "(cantidad de actividades terminadas en el tiempo), no una Curva S de probabilidad acumulada "
+                    "del tipo Monte Carlo. La separación entre ambas curvas visualiza el retraso cronológico "
+                    "inducido por los eventos pluviométricos sobre la red topológica."
+                )
                 
             with tab3:
                 df_hist = final[final['IsRain']==True].copy()
