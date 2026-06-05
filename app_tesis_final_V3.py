@@ -7,6 +7,7 @@ import io
 import re
 import math
 import os
+import numpy as np
 from datetime import datetime, timedelta, date
 
 # LIBRERÍAS PREMIUM Y UI
@@ -92,7 +93,7 @@ PRESETS_MODELOS = {
         "desc": "Protección de costos indirectos. Si la lluvia drena > 2.5h, se pierde el día completo para proteger el OPEX de la maquinaria pesada."
     },
     "05: CFX-VAL-05-HEAT (Evaporación Extrema)": {
-        "nlp": True, "ml": True, "pr": 50, "ur": 3.5, "ut": 2.5, "temp": 32.0, "hum": 55.0, "jornada": (8, 17),
+        "nlp": True, "ml": True, "pr": 65, "ur": 1.0, "ut": 2.5, "temp": 32.5, "hum": 55.0, "jornada": (8, 17),
         "desc": "Radiación extrema. Random Forest computa Tr mínimo. Tras una precipitación, la alta temperatura seca rápidamente el estrato."
     },
     "06: CFX-VAL-06-VAGUADA (Saturación Extrema)": {
@@ -114,51 +115,9 @@ PRESETS_MODELOS = {
     "10: CFX-VAL-10-COLLAPSE (Worst-Case General)": {
         "nlp": True, "ml": True, "pr": 20, "ur": 0.5, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
         "desc": "Estrés sistémico medio. Captura trazas mínimas de lluvia y penaliza agresivamente la eficiencia. Obliga alertas prescriptivas."
-    },
-    # ---- NUEVOS 10 MODELOS AVANZADOS (11-20) ----
-    "11: CFX-VAL-11-CLAY (Hipersensibilidad Cohesiva)": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Audita la respuesta PIML en arcillas A-7-6. Almacena agua capilar, obligando a NetworkX a empujar fechas tempranas (ES') asintóticamente."
-    },
-    "12: CFX-VAL-12-GRAN (Infiltración Darciana)": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 5.0, "ut": 2.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Evalúa suelos A-1-a. Alta permisividad pluvial que demuestra la rápida infiltración gravitacional en bases granulares."
-    },
-    "13: CFX-VAL-13-DEPR (Depresión Tropical)": {
-        "nlp": True, "ml": True, "pr": 15, "ur": 0.5, "ut": 6.5, "temp": 25.0, "hum": 85.0, "jornada": (8, 17),
-        "desc": "Baja presión atmosférica. Simula llovizna constante. Prescribe paralización total al registrar trazas que destruyen la tracción mecánica."
-    },
-    "14: CFX-VAL-14-SHIFT (Fast-Tracking Logístico)": {
-        "nlp": True, "ml": True, "pr": 55, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18),
-        "desc": "Verificación del operador de cuantización Q. El incremento del divisor de ventana (Hw) amortigua las anomalías climáticas matutinas."
-    },
-    "15: CFX-VAL-15-HEAT (Isla de Calor Estival)": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 45.0, "jornada": (8, 17),
-        "desc": "Temperatura llevada a sus límites. Evalúa el límite asintótico del secado (Tr → 0) post-lluvia, ahorrando holguras."
-    },
-    "16: CFX-VAL-16-HUM (Punto de Rocío/Niebla)": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 24.0, "hum": 98.0, "jornada": (8, 17),
-        "desc": "Anulación del déficit de presión de vapor. Aire saturado impide la evapotranspiración. Genera bloqueos masivos."
-    },
-    "17: CFX-VAL-17-OPEX (Restricción Financiera Severa)": {
-        "nlp": True, "ml": True, "pr": 50, "ur": 2.0, "ut": 7.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Intolerancia a la ineficiencia económica. Con Ut=7.0h, una sola hora de lluvia descarta la jornada operativa para blindar el flujo de caja."
-    },
-    "18: CFX-VAL-18-FLASH (Lluvias Convectivas Torrenciales)": {
-        "nlp": True, "ml": True, "pr": 10, "ur": 15.0, "ut": 1.0, "temp": 28.0, "hum": 75.0, "jornada": (8, 17),
-        "desc": "Filtra lloviznas (Ur=15mm). Aísla e impacta la matriz topológica exclusivamente bajo aguaceros masivos que desbordan drenajes."
-    },
-    "19: CFX-VAL-19-BLIND (Fallo Cognitivo Cruzado)": {
-        "nlp": False, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Muerte de ambas IAs. Todo se procesa con penalizaciones deterministas ciegas. Sirve de contraste forense para medir los días salvados por la IA."
-    },
-    "20: CFX-VAL-20-SWAN (Cisne Negro / Colapso Asintótico)": {
-        "nlp": True, "ml": True, "pr": 10, "ur": 0.1, "ut": 8.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
-        "desc": "Prueba de tensión máxima. Cualquier traza pluviométrica paraliza la obra completa. Evalúa que Kahn no entre en bucle de recursión infinita."
     }
 }
 
-# Callback para aplicar el preset
 def aplicar_preset():
     seleccion = st.session_state.selector_preset
     st.session_state['desc_actual'] = PRESETS_MODELOS[seleccion]['desc']
@@ -174,19 +133,17 @@ def aplicar_preset():
         st.session_state.hum_state = float(p['hum'])
         st.session_state.jornada_state = p['jornada']
         
-        # Volar automáticamente a Propacc Las Damas
         st.session_state.combo_ubicacion = "Santo Domingo Este - PROPACC LAS DAMAS"
         st.session_state.lat_actual = 18.4758
         st.session_state.lon_actual = -69.7781
         st.session_state.ubicacion_nombre = "Santo Domingo Este - PROPACC LAS DAMAS"
 
 # ==============================================================================
-# MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING
+# MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING (CORREGIDO)
 # ==============================================================================
 try:
     from transformers import pipeline
     from sklearn.ensemble import RandomForestRegressor
-    import numpy as np
     import warnings
     warnings.filterwarnings("ignore")
     IA_DISPONIBLE = True
@@ -220,41 +177,66 @@ def calcular_ic_ia(nombre_tarea, usar_ia=True):
 
 @st.cache_resource(show_spinner=False)
 def entrenar_modelo_termodinamico():
+    """
+    PARCHE APLICADO: Generador de datos sintéticos basados en física real.
+    Entrena al Random Forest para que devuelva HORAS de secado respondiendo
+    correctamente a la temperatura y humedad.
+    """
     if not IA_DISPONIBLE: return None
-    X = np.array([[40, 25, 85, 1], [15, 32, 60, 1], [50, 28, 90, 1],
-                  [40, 25, 85, 2], [15, 32, 60, 2], [50, 28, 90, 2],
-                  [40, 25, 85, 3], [15, 32, 60, 3], [50, 28, 90, 3]])
-    y = np.array([3.5, 1.5, 4.0, 1.5, 0.5, 2.0, 2.0, 1.0, 3.0])
-    modelo = RandomForestRegressor(n_estimators=100, random_state=42)
-    modelo.fit(X, y)
+    np.random.seed(42)
+    X_train = []
+    y_train = []
+    
+    # Creamos 2000 permutaciones físicas para entrenar a la IA
+    for _ in range(2000):
+        lluvia = np.random.uniform(0.1, 100.0)
+        temp = np.random.uniform(15.0, 45.0)
+        hum = np.random.uniform(30.0, 100.0)
+        suelo = np.random.choice([1, 2, 3]) 
+        
+        # Fórmula física real de evaporación 
+        evap_rate = max(0.1, (temp / 15.0) * ((100.0 - hum) / 40.0))
+        factor_suelo = {1: 1.5, 2: 1.0, 3: 0.5}[suelo] # 1 retiene más agua
+        
+        tr_horas = (lluvia / evap_rate) * factor_suelo
+        
+        X_train.append([lluvia, temp, hum, suelo])
+        y_train.append(min(96.0, tr_horas)) # Cap máximo de 96 horas
+        
+    modelo = RandomForestRegressor(n_estimators=50, random_state=42)
+    modelo.fit(X_train, y_train)
     return modelo
 
 ml_tr_model = entrenar_modelo_termodinamico()
 
 def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usar_ia=True):
     if not usar_ia or not ml_tr_model:
-        if tipo_suelo_ic >= 3.0: return 48.0, tipo_suelo_ic
-        elif tipo_suelo_ic >= 2.0: return 24.0, tipo_suelo_ic
-        elif tipo_suelo_ic >= 1.5: return 12.0, tipo_suelo_ic
+        # Fallback ciego
+        if tipo_suelo_ic >= 3.0: return 24.0, tipo_suelo_ic
+        elif tipo_suelo_ic >= 2.0: return 12.0, tipo_suelo_ic
+        elif tipo_suelo_ic >= 1.5: return 6.0, tipo_suelo_ic
         else: return 0.0, tipo_suelo_ic
         
     suelo_cat = 1 if tipo_suelo_ic >= 3.0 else (2 if tipo_suelo_ic >= 2.0 else 3)
-    tr_dias = ml_tr_model.predict([[lluvia_mm, temp_c, humedad_pct, suelo_cat]])[0]
-    tr_horas = round(tr_dias * 24.0, 1)
-    ic_dinamico = round(1.0 + tr_dias, 2)
-    return tr_horas, ic_dinamico
+    
+    # La IA ahora predice HORAS reales
+    tr_horas = ml_tr_model.predict([[lluvia_mm, temp_c, humedad_pct, suelo_cat]])[0]
+    
+    # Penalización del coeficiente basada en el daño hídrico prolongado
+    tr_dias = tr_horas / 24.0
+    ic_dinamico = round(tipo_suelo_ic + (tr_dias * 0.5), 2)
+    return round(tr_horas, 1), ic_dinamico
 
 def agente_prescriptivo_mitigacion(df_tareas, evb_total):
     sugerencias = []
     if evb_total < 3:
         return ["✅ **Red Logística Estable:** El riesgo climático actual es bajo y puede ser absorbido por las holguras normales del cronograma."]
     
-    tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 48.0]
+    tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 24.0]
     if not tierras.empty:
         peor_tarea = tierras.loc[pd.to_numeric(tierras['Días Impacto'], errors='coerce').idxmax()]
-        sugerencias.append(f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella. Tras las lluvias, este frente quedará inoperativo por saturación de agua (Alto Tiempo de Secado).")
-        sugerencias.append("👉 **Estrategia Logística Sugerida:** Evite mantener los recursos inactivos esperando que el suelo recupere su capacidad de soporte. Se recomienda reasignar temporalmente la maquinaria y las cuadrillas de este frente hacia partidas estructurales (ej. Hormigonado, Encofrados o Acero).")
-        sugerencias.append("⚙️ **Justificación Técnica:** Las tareas estructurales poseen inmunidad hídrica post-lluvia (Coeficiente de Impacto = 1.0). Al redirigir los recursos hacia estas actividades, se neutraliza la pérdida de horas-hombre y se mitiga significativamente el retraso global del proyecto.")
+        sugerencias.append(f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella logístico. (Alto Tiempo de Secado inferido por IA).")
+        sugerencias.append("👉 **Estrategia Logística Sugerida:** Evite mantener los recursos inactivos. Se recomienda reasignar temporalmente la maquinaria de este frente hacia partidas estructurales.")
     return sugerencias
 
 # ==============================================================================
@@ -402,7 +384,7 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# MOTOR CPM ESTOCÁSTICO V4 (LÓGICA TERMODINÁMICA CORREGIDA)
+# MOTOR CPM ESTOCÁSTICO V4 (LÓGICA TERMODINÁMICA Y FINANCIERA CORREGIDA)
 # ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
     G = nx.DiGraph()
@@ -464,7 +446,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             work_needed = math.ceil(base_dur_float) if base_dur_float > 0 else 1
             work_done = 0; cursor = new_start
             
-            # --- PARCHE CHRONOFLUX V4: LÓGICA TERMODINÁMICA ---
+            # --- PARCHE CHRONOFLUX: VARIABLES FÍSICAS CONTINUAS ---
             lluvia_acumulada_terreno = 0.0
             horas_jornada = float(h_fin - h_inicio) if h_fin > h_inicio else 8.0
             
@@ -480,30 +462,31 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         prob_acumulada += prob_hist
                         dias_evaluados += 1
                         
-                        # 1. Tasa de Evaporación Continua (Memoria del terreno)
-                        tasa_evaporacion = (temp_global / 10.0) * ((100.0 - hum_global) / 100.0)
+                        # Tasa de evaporación constante (Memoria del suelo)
+                        tasa_evaporacion = max(0.1, (temp_global / 10.0) * ((100.0 - hum_global) / 20.0))
                         lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + lluvia_dia - tasa_evaporacion)
                         
-                        # 2. Compuerta de Riesgo Estocástico
+                        # Compuerta de Tolerancia Pluviométrica
                         if prob_hist >= prob_min and lluvia_dia >= mm_min:
                             stats_mm = max(stats_mm, lluvia_dia)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
                             
-                            # IA Termodinámica evalúa el secado real de hoy
+                            # La IA calcula el tiempo de secado usando la lluvia ACUMULADA y el Clima
                             tr_horas, ic_dinamico = calcular_tr_y_ic_dinamico(lluvia_acumulada_terreno, temp_global, hum_global, ic_base, use_ml)
                             tr_horas_max = max(tr_horas_max, tr_horas)
                             ic_dinamico_max = max(ic_dinamico_max, ic_dinamico)
                             
-                            # Horas perdidas asumiendo intensidad promedio de 5mm/h
-                            horas_lluvia = lluvia_dia / 5.0 
+                            # Matemática de horas viables
+                            horas_lluvia = lluvia_dia / 5.0  # Asume intensidad 5mm/h
                             horas_restantes = horas_jornada - (horas_lluvia + tr_horas)
                             
-                            # 3. Indicatriz Financiera (Protección OPEX y Corrección Falso Positivo)
+                            # LA INDICATRIZ FINANCIERA (Ut)
                             if horas_restantes < umbral_horas:
-                                # Día inoperativo. Se inyecta la penalización (probabilidad * impacto)
+                                # Se cancela el día. Se inyecta EVB.
                                 retraso_teorico_dias += (prob_hist * ic_dinamico)
                             else:
-                                # El calor evaporó el agua a tiempo. La jornada se salva.
+                                # Hay calor. Secó rápido. Quedan suficientes horas útiles.
+                                # No se penaliza el cronograma.
                                 pass 
                                 
                 work_done += 1 
@@ -514,7 +497,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             nota_cuantizacion = ""
             total_cuantizado = base_dur_float
             if retraso_teorico_dias > 0:
-                # El Algoritmo Topológico expande la duración agregando el retraso total
                 total_cuantizado = base_dur_float + math.ceil(retraso_teorico_dias)
                 retraso_cuantizado = total_cuantizado - base_dur_float
                 if retraso_cuantizado != round(retraso_teorico_dias, 2):
@@ -560,7 +542,6 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     valid_efs = [data['EF'] for n, data in G.nodes(data=True) if data.get('EF') is not None]
     max_project_ef = max(valid_efs) if valid_efs else None
 
-    # Backward Pass
     for tid in reversed(orden):
         node = G.nodes[tid]
         if node.get('EF') is None: continue
@@ -699,30 +680,15 @@ with st.sidebar:
     temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, step=0.5, key='temp_state')
     hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, step=1.0, key='hum_state')
 
-    # ---------------- DESCARGA DE MANUAL (AL FINAL DE LA BARRA LATERAL) ----------------
     st.markdown("<br><br>", unsafe_allow_html=True)
     try:
         with open("CHRONOFLUX_USER_MANUAL.pdf", "rb") as pdf_file:
             pdf_bytes = pdf_file.read()
-        st.download_button(
-            label="📄 Descargar Manual de usuario",
-            data=pdf_bytes,
-            file_name="CHRONOFLUX_USER_MANUAL.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            help="Descarga el manual operativo en formato PDF."
-        )
+        st.download_button(label="📄 Descargar Manual", data=pdf_bytes, file_name="CHRONOFLUX_USER_MANUAL.pdf", mime="application/pdf", use_container_width=True)
     except FileNotFoundError:
-        st.download_button(
-            label="📄 Descargar Manual de usuario",
-            data=b"Archivo no encontrado",
-            file_name="error.txt",
-            use_container_width=True,
-            disabled=True,
-            help="Coloque el archivo CHRONOFLUX_USER_MANUAL.pdf en la raíz."
-        )
+        st.download_button(label="📄 Descargar Manual", data=b"", file_name="error.txt", use_container_width=True, disabled=True)
 
-# ---------------- BANNER DINÁMICO DE RED (PARTICLES.JS) ----------------
+# ---------------- BANNER DINÁMICO ----------------
 banner_html = """
 <div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
     <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
@@ -732,28 +698,7 @@ banner_html = """
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
 <script>
     particlesJS("particles-js", {
-      "particles": {
-        "number": {"value": 80, "density": {"enable": true, "value_area": 800}},
-        "color": {"value": "#ffffff"},
-        "shape": {"type": "circle"},
-        "opacity": {"value": 0.3, "random": false},
-        "size": {"value": 3, "random": true},
-        "line_linked": {"enable": true, "distance": 150, "color": "#38BDF8", "opacity": 0.4, "width": 1.5},
-        "move": {"enable": true, "speed": 1.5, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false}
-      },
-      "interactivity": {
-        "detect_on": "canvas",
-        "events": {
-          "onhover": {"enable": true, "mode": "grab"},
-          "onclick": {"enable": true, "mode": "push"},
-          "resize": true
-        },
-        "modes": {
-          "grab": {"distance": 140, "line_linked": {"opacity": 1}},
-          "push": {"particles_nb": 3}
-        }
-      },
-      "retina_detect": true
+      "particles": {"number": {"value": 80}, "color": {"value": "#ffffff"}, "opacity": {"value": 0.3}, "size": {"value": 3}, "line_linked": {"enable": true, "color": "#38BDF8"}, "move": {"enable": true, "speed": 1.5}}
     });
 </script>
 """
@@ -763,20 +708,16 @@ with col_logo:
     st.markdown("<br>", unsafe_allow_html=True)
     try: st.image("logo_chronoflux.png", use_container_width=True)
     except: st.empty()
-
 with col_banner:
     components.html(banner_html, height=135)
 
 # ==============================================================================
-# GEOLOCALIZACIÓN Y MAPA CON INGRESO MANUAL DE COORDENADAS
+# GEOLOCALIZACIÓN Y MAPA 
 # ==============================================================================
 def actualizar_desde_dropdown():
     coords = COORDENADAS_RD.get(st.session_state.combo_ubicacion, (18.4861, -69.9312))
     st.session_state['lat_actual'] = coords[0]; st.session_state['lon_actual'] = coords[1]
     st.session_state['ubicacion_nombre'] = st.session_state.combo_ubicacion
-    if st.session_state.selector_preset != "Personalizado (Ajuste Manual)":
-        st.session_state.selector_preset = "Personalizado (Ajuste Manual)"
-        st.session_state.desc_actual = PRESETS_MODELOS["Personalizado (Ajuste Manual)"]['desc']
 
 col_loc_1, col_loc_2 = st.columns([2, 1])
 
@@ -800,57 +741,37 @@ m.add_child(folium.LatLngPopup())
 folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
 map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
 
-if map_data and map_data.get("last_clicked"):
-    lat_c = map_data["last_clicked"]["lat"]; lon_c = map_data["last_clicked"]["lng"]
-    if round(lat_c, 4) != round(st.session_state['lat_actual'], 4) or round(lon_c, 4) != round(st.session_state['lon_actual'], 4):
-        st.session_state['lat_actual'] = lat_c; st.session_state['lon_actual'] = lon_c
-        st.session_state['ubicacion_nombre'] = f"Pin Manual: {lat_c:.4f}, {lon_c:.4f}"
-        st.rerun()
-
 st.markdown("---")
 
 # ==============================================================================
 # GRÁFICA CLIMÁTICA Y RADAR
 # ==============================================================================
 st.subheader(f"🌦️ Comportamiento Climático Histórico ({st.session_state['ubicacion_nombre']})")
-with st.spinner("Accediendo al caché geoespacial o descargando micro-clima (Lluvia, Temp, Humedad)..."):
+with st.spinner("Descargando micro-clima..."):
     df_g, clima, orden = obtener_clima_horario_laboral(st.session_state['lat_actual'], st.session_state['lon_actual'], h_inicio, h_fin)
     if df_g is not None:
         tab_precip, tab_temp, tab_hum = st.tabs(["🌧️ Lluvia (mm)", "🌡️ Temperatura (°C)", "💧 Humedad (%)"])
-        
         with tab_precip:
-            fig_clima = px.bar(df_g, x='Mes', y='mm', text='mm', 
-                               color='mm', color_continuous_scale=px.colors.sequential.Blues,
-                               hover_data={'prob_lluvia': ':.1%'},
-                               labels={'mm': 'Lluvia Promedio (mm/día)', 'prob_lluvia': 'Probabilidad de Lluvia'})
-            fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-            fig_clima.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
+            fig_clima = px.bar(df_g, x='Mes', y='mm', text='mm', color='mm', color_continuous_scale=px.colors.sequential.Blues, hover_data={'prob_lluvia': ':.1%'})
+            fig_clima.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+            fig_clima.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400)
             st.plotly_chart(fig_clima, use_container_width=True)
             
         with tab_temp:
-            fig_temp = px.bar(df_g, x='Mes', y='temp', text='temp',
-                              color='temp', color_continuous_scale=px.colors.sequential.Oranges,
-                              labels={'temp': 'Temp Promedio (°C)'})
-            fig_temp.update_traces(texttemplate='%{text:.1f}°', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-            fig_temp.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0'), xaxis_title=None, height=400)
+            fig_temp = px.bar(df_g, x='Mes', y='temp', text='temp', color='temp', color_continuous_scale=px.colors.sequential.Oranges)
+            fig_temp.update_traces(texttemplate='%{text:.1f}°', textposition='outside')
+            fig_temp.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', height=400)
             st.plotly_chart(fig_temp, use_container_width=True)
             
         with tab_hum:
-            fig_hum = px.bar(df_g, x='Mes', y='hum', text='hum',
-                             color='hum', color_continuous_scale=px.colors.sequential.Teal,
-                             labels={'hum': 'Humedad Relativa Promedio (%)'})
-            fig_hum.update_traces(texttemplate='%{text:.1f}%', textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9)
-            fig_hum.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=True, gridcolor='#E2E8F0', range=[0, 100]), xaxis_title=None, height=400)
+            fig_hum = px.bar(df_g, x='Mes', y='hum', text='hum', color='hum', color_continuous_scale=px.colors.sequential.Teal)
+            fig_hum.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            fig_hum.update_layout(coloraxis_showscale=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(range=[0, 100]), height=400)
             st.plotly_chart(fig_hum, use_container_width=True)
 
 st.markdown("---")
 st.subheader(f"📡 Radar Satelital en Tiempo Real ({st.session_state['ubicacion_nombre']})")
-windy_html = f"""
-<iframe width="100%" height="450" 
-    src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=9&overlay=rain&product=ecmwf&level=surface&lat={st.session_state['lat_actual']}&lon={st.session_state['lon_actual']}" 
-    frameborder="0" style="border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-</iframe>
-"""
+windy_html = f"""<iframe width="100%" height="450" src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=9&overlay=rain&product=ecmwf&level=surface&lat={st.session_state['lat_actual']}&lon={st.session_state['lon_actual']}" frameborder="0" style="border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);"></iframe>"""
 components.html(windy_html, height=450)
 st.markdown("---")
 
@@ -887,18 +808,15 @@ if uploaded:
         st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
         
         c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, key='pr_state', help="Días con esta probabilidad o mayor serán evaluados.") / 100.0
-        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, step=0.5, key='ur_state', help="Umbral de Riesgo (Ur). Nivel de lluvia necesario para paralizar la actividad.")
-        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, step=0.5, key='ut_state', help="Umbral Operativo (Ut). Horas operables mínimas requeridas para no perder el día (OPEX).")
+        prob = c_p.slider("Probabilidad de Lluvia (%) - Pr", 0, 100, key='pr_state') / 100.0
+        mm = c_m.slider("Intensidad (mm/día) - Ur", 0.0, 50.0, step=0.5, key='ur_state')
+        umbral_horas = c_u.slider("Umbral Mínimo (Horas) - Ut", 1.0, 8.0, step=0.5, key='ut_state')
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
-            st.toast('Iniciando simulación topológica...', icon='🚀')
-            
             with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
                 final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
-                st.toast('¡Simulación completada con éxito!', icon='✅')
                 
         if st.session_state['simulacion_activa'] and st.session_state['resultados_finales'] is not None:
             final = st.session_state['resultados_finales']
@@ -918,22 +836,18 @@ if uploaded:
                 <div class="kpi-box">
                     <div class="kpi-title">Actividades Afectadas</div>
                     <div class="kpi-value">{count_impact} <span>/ {len(tareas_evaluables)} totales</span></div>
-                    <div class="kpi-subtitle">Tareas de campo que sufrieron inyección de EVB.</div>
                 </div>
                 <div class="kpi-box">
                     <div class="kpi-title">Retraso del Proyecto</div>
                     <div class="kpi-value {'danger' if retraso_total_proyecto > 0 else ''}">+{max(0, retraso_total_proyecto)} <span>Días Calendario</span></div>
-                    <div class="kpi-subtitle">Desplazamiento final tras recalcular Ruta Crítica.</div>
                 </div>
                 <div class="kpi-box">
                     <div class="kpi-title">Fecha Final Proyectada</div>
                     <div class="kpi-value" style="font-size: 2rem;">{fin_nuevo_max.strftime("%d %b %Y") if pd.notna(fin_nuevo_max) else 'N/A'}</div>
-                    <div class="kpi-subtitle">Línea Base original: {fin_base_max.strftime('%d %b %Y') if pd.notna(fin_base_max) else 'N/A'}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
-            # --- AGENTE PRESCRIPTIVO ---
             if activar_ag:
                 st.markdown("### 🤖 Agente Prescriptivo de Mitigación (IA)")
                 consejos = agente_prescriptivo_mitigacion(final, retraso_total_proyecto)
@@ -942,24 +856,17 @@ if uploaded:
             
             act_reales = final[(final['IsSummary'] == False) & (final['IsMilestone'] == False)]
             
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva S (Interactiva)", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Gantt Comparativo", "📈 Curva S", "📅 Riesgo Mensual", "⚠️ Tabla de Impactos"])
             
             with tab1:
-                st.markdown("#### Diagrama de Gantt Ajustado")
                 df_gantt = act_reales.copy()
                 df_gantt['Inicio Nuevo'] = pd.to_datetime(df_gantt['Inicio Nuevo'])
                 df_gantt['Fin Nuevo'] = pd.to_datetime(df_gantt['Fin Nuevo'])
-                df_gantt = df_gantt.sort_values('Inicio Nuevo')
-                
                 if not df_gantt.empty:
-                    fig_gantt = px.timeline(df_gantt, x_start="Inicio Nuevo", x_end="Fin Nuevo", y="Actividad",
-                                            color="Días Impacto", color_continuous_scale=px.colors.sequential.Tealgrn,
-                                            hover_data=["Duración Nueva", "Holgura (Días)", "Ruta Crítica"])
+                    fig_gantt = px.timeline(df_gantt.sort_values('Inicio Nuevo'), x_start="Inicio Nuevo", x_end="Fin Nuevo", y="Actividad", color="Días Impacto", color_continuous_scale=px.colors.sequential.Tealgrn)
                     fig_gantt.update_yaxes(autorange="reversed")
                     fig_gantt.update_layout(height=600, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', template='plotly_white')
                     st.plotly_chart(fig_gantt, use_container_width=True)
-                else:
-                    st.info("No hay datos para generar el Gantt.")
             
             with tab2:
                 df_base = act_reales[['Fin Base']].copy().rename(columns={'Fin Base':'Fecha'}).dropna()
@@ -972,15 +879,7 @@ if uploaded:
                 df_s = df_s.sort_values('Fecha')
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
-                fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', 
-                                color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'},
-                                markers=True, line_shape='spline', template='plotly_white')
-                fig_s.update_traces(fill='tozeroy', fillcolor='rgba(175, 30, 45, 0.05)', selector=dict(name='Sugerido'))
-                fig_s.update_traces(fill='tozeroy', fillcolor='rgba(148, 163, 184, 0.05)', selector=dict(name='Base'))
-                fig_s.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', hovermode='x unified', xaxis_title="Fechas de Finalización", yaxis_title="Tareas Completadas",
-                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                fig_s.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#F1F5F9')
-                fig_s.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#F1F5F9')
+                fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'}, markers=True, template='plotly_white')
                 st.plotly_chart(fig_s, use_container_width=True)
                 
             with tab3:
@@ -989,127 +888,26 @@ if uploaded:
                     df_hist['Mes'] = pd.to_datetime(df_hist['Inicio Nuevo']).dt.month_name()
                     counts_mes = df_hist['Mes'].value_counts().reset_index()
                     counts_mes.columns = ['Mes', 'Qty']
-                    
                     fig_riesgo = px.bar(counts_mes, x='Mes', y='Qty', text='Qty', color_discrete_sequence=['#0EA5E9'], template='plotly_white')
-                    fig_riesgo.update_traces(textposition='outside', marker_line_color='rgba(0,0,0,0)', opacity=0.9, width=0.6)
-                    fig_riesgo.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis_title=None, yaxis_title="Cantidad de Tareas Afectadas")
-                    fig_riesgo.update_yaxes(showgrid=True, gridcolor='#F1F5F9')
                     st.plotly_chart(fig_riesgo, use_container_width=True)
-                else: st.info("Ninguna actividad superó los umbrales de lluvia seleccionados.")
                 
             with tab4:
                 df_pareto = final[final['IsSummary'] == False].sort_values('Días Impacto', ascending=False)
                 gb = GridOptionsBuilder.from_dataframe(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']])
                 gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
-                gb.configure_default_column(resizable=True, filterable=True, sortable=True)
-                gb.configure_column("Actividad", width=400)
-                gb.configure_column("Estado", width=350)
                 gridOptions = gb.build()
-                
-                st.markdown("*(Puedes dar clic en los encabezados para filtrar o mover las columnas)*")
-                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']], 
-                       gridOptions=gridOptions, 
-                       theme='alpine',
-                       columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-                       update_mode=GridUpdateMode.NO_UPDATE)
+                AgGrid(df_pareto[['ID', 'WBS', 'Actividad', 'Días Impacto', 'Tr (Secado/Horas)', 'Holgura (Días)', 'Ruta Crítica', 'Estado']], gridOptions=gridOptions, theme='alpine')
 
             b_out = io.BytesIO()
             p_name = st.session_state.get('project_name', 'Proyecto')
             safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
             
-            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 
-                                 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 
-                                 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 
-                                 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
+            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
             
             with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
                 final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
-                wb = w.book
-                ws = w.sheets['Sugerencias']
-                
-                formato_project = 'dd/mm/yyyy'
-                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 14})
-                fmt_norm = wb.add_format({'border':1})
-                fmt_date = wb.add_format({'num_format': formato_project, 'border':1})
-                fmt_med = wb.add_format({'bg_color': '#DBEAFE', 'border':1, 'font_color': 'black'}) 
-                fmt_med_date = wb.add_format({'bg_color': '#DBEAFE', 'num_format': formato_project, 'border':1, 'font_color': 'black'})
-                fmt_high = wb.add_format({'bg_color': '#0F172A', 'border':1, 'font_color': 'white'}) 
-                fmt_high_date = wb.add_format({'bg_color': '#0F172A', 'num_format': formato_project, 'border':1, 'font_color': 'white'})
-                fmt_logic = wb.add_format({'bg_color': '#FEF08A', 'border':1}) 
-                fmt_logic_date = wb.add_format({'bg_color': '#FEF08A', 'num_format': formato_project, 'border':1})
-                fmt_summary = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'border':1})
-                fmt_summary_date = wb.add_format({'bold': True, 'bg_color': '#F1F5F9', 'num_format': formato_project, 'border':1})
-
-                last_col_idx = len(columnas_exportar) - 1 
-                ws.merge_range(0, 0, 0, last_col_idx, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
-                
-                date_cols = [4, 5, 7, 8]
-                rain_date_col = 15
-                
-                for r, row in final.iterrows():
-                    impacto = row['Días Impacto']
-                    is_logic = row['IsLogic']
-                    is_summary = row['IsSummary']
-                    
-                    row_fmt = fmt_norm
-                    row_date_fmt = fmt_date
-                    
-                    if is_summary: row_fmt = fmt_summary; row_date_fmt = fmt_summary_date
-                    elif impacto > 2: row_fmt = fmt_high; row_date_fmt = fmt_high_date
-                    elif impacto > 0: row_fmt = fmt_med; row_date_fmt = fmt_med_date
-                    elif is_logic: row_fmt = fmt_logic; row_date_fmt = fmt_logic_date
-                        
-                    for c, col_name in enumerate(columnas_exportar):
-                        val = row.get(col_name, "")
-                        if pd.isna(val): val = ""
-                        
-                        cell_fmt = row_date_fmt if (c in date_cols or c == rain_date_col) else row_fmt
-                        
-                        if (c in date_cols or c == rain_date_col) and isinstance(val, (datetime, date, pd.Timestamp)):
-                            ws.write_datetime(r+2, c, val, cell_fmt)
-                        else:
-                            ws.write(r+2, c, val, cell_fmt)
-                
-                ws.set_column('C:C', 40); ws.set_column('R:R', 35)
-
-                ws_data = wb.add_worksheet('Datos_Graficos')
-                ws_data.write('A1', 'Fecha'); ws_data.write('B1', 'Acumulado Base'); ws_data.write('C1', 'Acumulado Sugerido')
-                
-                df_s_excel = df_s.pivot_table(index='Fecha', columns='Tipo', values='Acumulado', aggfunc='max').ffill().fillna(0).reset_index()
-                if 'Base' not in df_s_excel.columns: df_s_excel['Base'] = 0
-                if 'Sugerido' not in df_s_excel.columns: df_s_excel['Sugerido'] = 0
-                
-                if not df_s_excel.empty:
-                    for i, r in df_s_excel.iterrows():
-                        date_val = r['Fecha']
-                        if isinstance(date_val, pd.Timestamp): date_val = date_val.date()
-                        ws_data.write(i+1, 0, date_val.strftime('%d/%m/%Y'))
-                        ws_data.write(i+1, 1, r['Base'])
-                        ws_data.write(i+1, 2, r['Sugerido'])
-                
-                ws_data.write('E1', 'Mes'); ws_data.write('F1', 'Cantidad')
-                if not df_hist.empty:
-                    counts = df_hist['Mes'].value_counts().reset_index()
-                    counts.columns = ['Mes', 'Qty']
-                    for i, r in counts.iterrows():
-                        ws_data.write(i+1, 4, r['Mes'])
-                        ws_data.write(i+1, 5, r['Qty'])
-
-                chart_sheet1 = wb.add_chartsheet('Grafico_Curva_S')
-                chart1 = wb.add_chart({'type': 'line'})
-                max_row = len(df_s_excel)
-                if max_row > 0:
-                    chart1.add_series({'name': 'Plan Base', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 1, max_row, 1], 'line': {'color': 'gray'}})
-                    chart1.add_series({'name': 'Con Lluvia', 'categories': ['Datos_Graficos', 1, 0, max_row, 0], 'values': ['Datos_Graficos', 1, 2, max_row, 2], 'line': {'color': 'blue'}})
-                chart1.set_title({'name': 'Curva S de Avance (Solo Tareas de Trabajo)'})
-                chart_sheet1.set_chart(chart1)
-
-                if not df_hist.empty:
-                    chart_sheet2 = wb.add_chartsheet('Grafico_Barras')
-                    chart2 = wb.add_chart({'type': 'column'})
-                    max_row_h = len(counts)
-                    chart2.add_series({'name': 'Actividades Afectadas', 'categories': ['Datos_Graficos', 1, 4, max_row_h, 4], 'values': ['Datos_Graficos', 1, 5, max_row_h, 5], 'fill': {'color': '#AF1E2D'}})
-                    chart2.set_title({'name': 'Riesgo por Mes'})
-                    chart_sheet2.set_chart(chart2)
+                wb = w.book; ws = w.sheets['Sugerencias']
+                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white'})
+                ws.merge_range(0, 0, 0, len(columnas_exportar)-1, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
 
             st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
