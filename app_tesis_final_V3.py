@@ -854,7 +854,7 @@ with st.sidebar:
     usar_clima_real = st.toggle(
         "Usar clima real ERA5 (hiperlocal)", key='clima_real_state',
         help=("Activado: temperatura y humedad se toman de la serie histórica ERA5 de la "
-              "coordenada, día a día (modo producción, fiel a la tesis). "
+              "coordenada, día a día (modo producción). "
               "Desactivado: se usan los valores manuales de abajo como escenario de estrés "
               "(modo usado por los presets de validación).")
     )
