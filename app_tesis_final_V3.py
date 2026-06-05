@@ -36,6 +36,8 @@ if 'hum_state' not in st.session_state: st.session_state['hum_state'] = 85.0
 if 'pr_state' not in st.session_state: st.session_state['pr_state'] = 65
 if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 5.0
 if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 3.0
+if 'dias_state' not in st.session_state: st.session_state['dias_state'] = ["Lun","Mar","Mié","Jue","Vie"]
+if 'clima_real_state' not in st.session_state: st.session_state['clima_real_state'] = True
 if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Ajuste manual de las variables estocásticas y logísticas del proyecto."
 if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4758
 if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.7781
@@ -76,45 +78,85 @@ PRESETS_MODELOS = {
     "Personalizado (Ajuste Manual)": {
         "desc": "Modo de operación libre. Ajuste los deslizadores paramétricos según su criterio profesional forense.",
     },
-    "01: CFX-VAL-01-BASE (Determinista Puro)": {
-        "nlp": False, "ml": False, "pr": 100, "ur": 50.0, "ut": 1.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Baseline determinista. Capa IA desactivada y umbrales inalcanzables. El motor CPM arrojará una inyección EVB nula (Cero desviación algorítmica)."
+    "01: CFX-VAL-01 Determinista (Control)": {
+        "nlp": False, "ml": False, "pr": 100, "ur": 50.0, "ut": 1.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Baseline determinista. IA desactivada y umbrales inalcanzables. EVB nulo: punto cero para medir desplazamientos."
     },
-    "02: CFX-VAL-02-CICLO (Sensibilidad Otoño)": {
-        "nlp": True, "ml": True, "pr": 40, "ur": 1.5, "ut": 3.0, "temp": 28.5, "hum": 74.8, "jornada": (8, 17),
-        "desc": "Simula los meses críticos de ciclones (Sept-Oct). Alta humedad y captura de eventos pluviométricos convectivos frecuentes."
+    "02: CFX-VAL-02 Ciclones (Otoño)": {
+        "nlp": True, "ml": True, "pr": 40, "ur": 1.5, "ut": 3.0, "temp": 28.5, "hum": 74.8, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Meses críticos Sept-Nov. Pr y Ur bajos: hiper-sensible a lluvias convectivas frecuentes. Alta humedad extiende el Tr."
     },
-    "03: CFX-VAL-03-ESTIAJE (Ventana Seca)": {
-        "nlp": True, "ml": True, "pr": 70, "ur": 5.0, "ut": 2.0, "temp": 26.4, "hum": 65.6, "jornada": (8, 17),
-        "desc": "Simula Enero-Febrero. Reconoce la 'ventana seca' reduciendo drásticamente el EVB. Valida que el modelo no penalice falsamente el Gantt."
+    "03: CFX-VAL-03 Estiaje (Ventana Seca)": {
+        "nlp": True, "ml": True, "pr": 75, "ur": 5.0, "ut": 2.0, "temp": 26.4, "hum": 65.6, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Feb-Mar. Pr alto y baja humedad: el modelo reconoce ventanas de oportunidad y no penaliza injustificadamente."
     },
-    "04: CFX-VAL-04-OPEX (Estrés Logístico Moderado)": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Protección de costos indirectos. Si la lluvia drena > 2.5h, se pierde el día completo para proteger el OPEX de la maquinaria pesada."
+    "04: CFX-VAL-04 OPEX Moderado": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Protección de costos indirectos. Si la lluvia arruina media jornada, se descarta el día para proteger el OPEX."
     },
-    "05: CFX-VAL-05-HEAT (Evaporación Extrema)": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 1.0, "ut": 2.5, "temp": 32.5, "hum": 55.0, "jornada": (8, 17),
-        "desc": "Radiación extrema. Random Forest computa Tr mínimo. Tras una precipitación, la alta temperatura seca rápidamente el estrato."
+    "05: CFX-VAL-05 HEAT Evaporación": {
+        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 32.5, "hum": 55.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Sequía y radiación alta. El Random Forest minimiza Tr; la habilitación topológica post-lluvia se acelera."
     },
-    "06: CFX-VAL-06-VAGUADA (Saturación Extrema)": {
-        "nlp": True, "ml": True, "pr": 30, "ur": 1.0, "ut": 4.0, "temp": 24.5, "hum": 95.0, "jornada": (8, 17),
-        "desc": "Saturación capilar. Baja temperatura y altísima humedad anulan la evapotranspiración latente. Genera bloqueos prolongados."
+    "06: CFX-VAL-06 Vaguada (Saturación)": {
+        "nlp": True, "ml": True, "pr": 40, "ur": 2.0, "ut": 4.0, "temp": 24.5, "hum": 95.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Escenario adverso: baja temperatura + 95% humedad anulan la evaporación. La terracería colapsa (Tr > 72h)."
     },
-    "07: CFX-VAL-07-NLP (Auditoría Semántica)": {
-        "nlp": False, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Desactiva Transformer NLP. El sistema utiliza heurística de expresiones regulares para asignar vulnerabilidades de materiales."
+    "07: CFX-VAL-07 Fallo NLP (Ceguera Semántica)": {
+        "nlp": False, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Desactiva el Transformer Zero-Shot. El sistema recurre al fallback RegEx; valida el valor de la semántica en el Ic."
     },
-    "08: CFX-VAL-08-ML (Auditoría Termodinámica)": {
-        "nlp": True, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17),
-        "desc": "Desactiva Random Forest. El modelo utiliza retrasos fijos ignorando el microclima térmico e hídrico del entorno real."
+    "08: CFX-VAL-08 Fallo PIML (Ceguera Térmica)": {
+        "nlp": True, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Desactiva el Random Forest. Tr estático (48h arcillas) ignorando el microclima; mide el aporte de la IA termodinámica."
     },
-    "09: CFX-VAL-09-OVERTIME (Turnos Extendidos)": {
-        "nlp": True, "ml": True, "pr": 50, "ur": 4.0, "ut": 1.5, "temp": 28.2, "hum": 72.0, "jornada": (7, 18),
-        "desc": "Dilución del impacto. Al expandir la jornada operativa (11 horas), el daño porcentual a la ruta crítica decrece."
+    "09: CFX-VAL-09 Fast-Tracking 11h (L-D)": {
+        "nlp": True, "ml": True, "pr": 55, "ur": 4.0, "ut": 1.5, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],
+        "desc": "Jornada 11h, Lun-Dom. El impacto pluviométrico se diluye sobre un divisor Hw mayor. Evalúa la absorción por horas extra."
     },
-    "10: CFX-VAL-10-COLLAPSE (Worst-Case General)": {
-        "nlp": True, "ml": True, "pr": 20, "ur": 0.5, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17),
-        "desc": "Estrés sistémico medio. Captura trazas mínimas de lluvia y penaliza agresivamente la eficiencia. Obliga alertas prescriptivas."
+    "10: CFX-VAL-10 Collapse (Worst-Case)": {
+        "nlp": True, "ml": True, "pr": 30, "ur": 1.0, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Máxima sensibilidad. Cualquier llovizna se registra; con poco remanente operativo se cancela el día. Límite superior de la deriva."
+    },
+    "11: CFX-VAL-11 Arcilla A-7-6": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Estratos cohesivos de alta plasticidad (Ic=3.0). El RF computa Tr asintóticamente alto por retención capilar."
+    },
+    "12: CFX-VAL-12 Granular A-1-a": {
+        "nlp": True, "ml": True, "pr": 60, "ur": 5.0, "ut": 2.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Permeabilidad y flujo gravitacional (Ic=2.0). Tolerancia de lámina alta: restitución rápida del Módulo Resiliente."
+    },
+    "13: CFX-VAL-13 Depresión (Llovizna Persistente)": {
+        "nlp": True, "ml": True, "pr": 15, "ur": 0.5, "ut": 6.5, "temp": 25.0, "hum": 85.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Baja presión sin inundación pero satura la obra. Ur muy bajo + Ut alto: las trazas constantes paralizan la terracería."
+    },
+    "14: CFX-VAL-14 Fast-Tracking 11h": {
+        "nlp": True, "ml": True, "pr": 55, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Ventana operativa extendida (Hw=11h). Un evento de 2h se diluye; verifica el operador de cuantización Q."
+    },
+    "15: CFX-VAL-15 Isla de Calor (38°C)": {
+        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 45.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Sequía extrema. El ML dictamina secado ultrarrápido (Tr→0); los frentes se habilitan casi inmediatamente."
+    },
+    "16: CFX-VAL-16 Saturación Atmosférica (98%)": {
+        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 24.0, "hum": 98.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Niebla densa: el aire no absorbe humedad, se detiene la evaporación. El RF castiga severamente la recuperación."
+    },
+    "17: CFX-VAL-17 OPEX Severo": {
+        "nlp": True, "ml": True, "pr": 50, "ur": 2.0, "ut": 7.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Frontera financiera. Con Ut=7.0h, una hora de lluvia encarece demasiado; se descartan días con mínimas perturbaciones."
+    },
+    "18: CFX-VAL-18 Flash Floods (Torrencial)": {
+        "nlp": True, "ml": True, "pr": 10, "ur": 15.0, "ut": 1.0, "temp": 28.0, "hum": 75.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Aísla aguaceros torrenciales (Ur=15mm), ignorando lloviznas. Solo inyecta EVB ante volúmenes masivos de agua."
+    },
+    "19: CFX-VAL-19 Blind (Referencia Ciega)": {
+        "nlp": False, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Apaga semántica y termodinámica. Penalizaciones estáticas: contraste para medir los días que salva la IA."
+    },
+    "20: CFX-VAL-20 Cisne Negro (Stress Máximo)": {
+        "nlp": True, "ml": True, "pr": 10, "ur": 0.1, "ut": 8.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "desc": "Tensión máxima: cualquier rocío (0.1mm) paraliza. Fuerza la mutación salvaje de la Ruta Crítica y al Agente Prescriptivo."
     }
 }
 
@@ -132,6 +174,11 @@ def aplicar_preset():
         st.session_state.temp_state = float(p['temp'])
         st.session_state.hum_state = float(p['hum'])
         st.session_state.jornada_state = p['jornada']
+        # AE-03: los presets ahora también fijan los días laborables
+        if 'dias' in p:
+            st.session_state.dias_state = p['dias']
+        # Los presets son ensayos de estrés: usan override manual de temp/humedad
+        st.session_state.clima_real_state = False
         
         st.session_state.combo_ubicacion = "Santo Domingo Este - PROPACC LAS DAMAS"
         st.session_state.lat_actual = 18.4758
@@ -350,6 +397,11 @@ def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
                 'n_anios': len(valores),
                 'probabilidad': float((grupo['mm'] > 0.5).mean()),  # se mantiene para referencia/gráficos
                 'mm_promedio': float(grupo['mm'].mean()),           # se mantiene solo para reportes
+                # AE-04: temperatura y humedad REALES (ERA5) de ese día-calendario.
+                # Permiten alimentar el modelo termodinámico con clima hiperlocal real
+                # en lugar de un override global uniforme.
+                'temp_dia': float(grupo['temp'].mean()),
+                'hum_dia': float(grupo['hum'].mean()),
                 'ultima_fecha_lluvia': max(fechas_lluvia) if fechas_lluvia else None
             }
         
@@ -449,7 +501,7 @@ def contar_dias_habiles_shift(desde, hasta, dias_idx, feriados):
             n += 1
     return n
 
-def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
+def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global, usar_clima_real=False):
     G = nx.DiGraph()
     for _, row in df.iterrows():
         tid = row['ID']
@@ -510,10 +562,14 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             work_needed = math.ceil(base_dur_float) if base_dur_float > 0 else 1
             work_done = 0; cursor = new_start
             
-            # --- PARCHE CHRONOFLUX: VARIABLES FÍSICAS CONTINUAS ---
-            lluvia_acumulada_terreno = 0.0
+            # --- MOTOR ESTOCÁSTICO V6: DEUDA DE SECADO MULTI-DÍA ---
+            # El Tiempo de Recuperación (Tr) ya no es un interruptor binario: se reparte
+            # como horas de inoperatividad que se consumen jornada a jornada (Ec. 5.5 + 5.9).
+            lluvia_acumulada_terreno = 0.0       # humedad del suelo (mm equivalentes)
+            deuda_secado_horas = 0.0             # horas de inoperatividad pendientes (recuperación)
+            prob_vigente = 0.0                   # P(d|Ur) del evento que originó la deuda activa
             horas_jornada = float(h_fin - h_inicio) if h_fin > h_inicio else 8.0
-            
+
             while work_done < work_needed:
                 if es_habil(cursor, dias_idx, feriados):
                     k = cursor.strftime('%m-%d')
@@ -521,67 +577,73 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         h = clima[k]
 
                         # ============================================================
-                        # CORRECCIÓN RAÍZ — FRECUENTISMO REAL (Ec. 5.4.2)
-                        # Se calcula P(d|Ur) como la fracción de años históricos cuya
-                        # lluvia de ese día superó el umbral Ur del usuario, NO contra
-                        # un 0.5mm fijo y NO usando el promedio diluido. La magnitud que
-                        # alimenta el suelo es la media CONDICIONAL de los eventos que
-                        # realmente superaron Ur (no el promedio que incluye años secos).
+                        # FRECUENTISMO REAL (Ec. 5.4.2): P(d|Ur) = fracción de años cuyo
+                        # registro de ese día superó Ur. El suelo se alimenta con la media
+                        # CONDICIONAL de los eventos reales, no con el promedio diluido.
                         # ============================================================
                         valores = h.get('valores_mm', None)
                         if valores:
                             n = len(valores)
-                            eventos = [v for v in valores if v >= mm_min]      # años que superaron Ur
-                            prob_exceed = len(eventos) / n if n > 0 else 0.0    # P(d|Ur) frecuentista
-                            # Magnitud típica del evento (media condicional). Si no hubo
-                            # eventos sobre Ur, se usa el máximo histórico como referencia.
+                            eventos = [v for v in valores if v >= mm_min]
+                            prob_exceed = len(eventos) / n if n > 0 else 0.0
                             mm_evento = (sum(eventos) / len(eventos)) if eventos else max(valores)
                         else:
-                            # Compatibilidad con cachés antiguos
                             prob_exceed = h.get('probabilidad', 0.0)
                             mm_evento = h.get('mm_promedio', 0.0)
 
-                        prob_hist = prob_exceed
-                        lluvia_dia = mm_evento
+                        # ============================================================
+                        # AE-04: fuente termodinámica. Por defecto se usan temp/humedad
+                        # REALES de ERA5 de ese día. En modo escenario (presets de estrés)
+                        # se usan los valores globales del panel.
+                        # ============================================================
+                        if usar_clima_real:
+                            temp_d = h.get('temp_dia', temp_global)
+                            hum_d = h.get('hum_dia', hum_global)
+                        else:
+                            temp_d = temp_global
+                            hum_d = hum_global
 
                         rain_total += h.get('mm_promedio', 0.0)
-                        prob_acumulada += prob_hist
+                        prob_acumulada += prob_exceed
                         dias_evaluados += 1
 
-                        # Tasa de evaporación (drenaje del suelo entre jornadas)
-                        tasa_evaporacion = max(0.1, (temp_global / 10.0) * ((100.0 - hum_global) / 20.0))
+                        tasa_evaporacion = max(0.1, (temp_d / 10.0) * ((100.0 - hum_d) / 20.0))
 
-                        # ============================================================
-                        # Compuerta frecuentista (Ec. 5.4.3): el día es de RIESGO solo si
-                        # la probabilidad histórica de superar Ur alcanza el umbral Pr.
-                        # Aquí Ur ya está incorporado dentro de prob_exceed, por eso el
-                        # gate es una sola condición coherente (la intersección C1∩C2).
-                        # ============================================================
-                        if prob_hist >= prob_min:
-                            # El suelo recibe la magnitud del EVENTO real (no el promedio)
-                            lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + lluvia_dia - tasa_evaporacion)
-                            stats_mm = max(stats_mm, lluvia_dia)
+                        # Compuerta frecuentista (Ec. 5.4.3): día de riesgo si P(d|Ur) >= Pr
+                        if prob_exceed >= prob_min:
+                            lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + mm_evento - tasa_evaporacion)
+                            stats_mm = max(stats_mm, mm_evento)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
 
-                            # La IA infiere el tiempo de secado con la lluvia acumulada del evento
-                            tr_horas, ic_dinamico = calcular_tr_y_ic_dinamico(lluvia_acumulada_terreno, temp_global, hum_global, ic_base, use_ml)
+                            tr_horas, ic_dinamico = calcular_tr_y_ic_dinamico(lluvia_acumulada_terreno, temp_d, hum_d, ic_base, use_ml)
                             tr_horas_max = max(tr_horas_max, tr_horas)
                             ic_dinamico_max = max(ic_dinamico_max, ic_dinamico)
 
-                            # Horas útiles remanentes tras lluvia + secado
-                            horas_lluvia = lluvia_dia / 5.0  # intensidad de referencia 5 mm/h
-                            horas_restantes = horas_jornada - (horas_lluvia + tr_horas)
-
-                            # Indicatriz logística (Hw_min): si no quedan horas útiles, día perdido.
-                            # EVBi += P(d|Ur) × Q(Ic) ponderado por la probabilidad frecuentista (Ec. 5.9)
-                            if horas_restantes < umbral_horas:
-                                retraso_teorico_dias += (prob_hist * ic_dinamico)
-                            else:
-                                # Día parcialmente operativo: impacto proporcional al riesgo residual
-                                retraso_teorico_dias += (prob_hist * ic_dinamico * 0.25)
+                            # AE-01/05: la recuperación se suma a la deuda. El secado pendiente
+                            # se solapa (no se apila): se toma el máximo y se añade la lluvia activa.
+                            horas_lluvia = mm_evento / 5.0          # intensidad de referencia 5 mm/h
+                            deuda_secado_horas = max(deuda_secado_horas, tr_horas) + horas_lluvia
+                            prob_vigente = prob_exceed
                         else:
-                            # Día sin riesgo: el suelo solo drena
                             lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno - tasa_evaporacion)
+
+                        # ============================================================
+                        # AE-01: PÉRDIDA FRACCIONAL CONTINUA DE LA JORNADA
+                        # Se consume la jornada de hoy contra la deuda de secado. La fracción
+                        # perdida es proporcional a las horas no productivas (Tr + lluvia),
+                        # diluida por la duración de la jornada (Hw) — habilita el fast-tracking.
+                        # ============================================================
+                        if deuda_secado_horas > 1e-6:
+                            horas_perdidas_hoy = min(horas_jornada, deuda_secado_horas)
+                            horas_productivas_hoy = horas_jornada - horas_perdidas_hoy
+                            fraccion_perdida = horas_perdidas_hoy / horas_jornada
+                            # AE-01 (Ut): si lo productivo remanente < umbral de rentabilidad,
+                            # la jornada completa se descarta (operador de cuantización Q).
+                            if horas_productivas_hoy < umbral_horas:
+                                fraccion_perdida = 1.0
+                            # Valor esperado de jornadas perdidas (ponderado por la probabilidad)
+                            retraso_teorico_dias += prob_vigente * fraccion_perdida
+                            deuda_secado_horas = max(0.0, deuda_secado_horas - horas_jornada)
                         # =========================================================
 
                 work_done += 1 
@@ -777,7 +839,7 @@ with st.sidebar:
     h_inicio, h_fin = st.slider("Jornada", 0, 23, key='jornada_state')
     
     st.subheader("2. Días Laborables")
-    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], default=["Lun","Mar","Mié","Jue","Vie"])
+    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], key='dias_state')
     mapa_d = {"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}
     dias_idx = [mapa_d[d] for d in dias_sel]
     
@@ -789,8 +851,17 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("🌡️ Termodinámica (Inferencia Continua)")
-    temp_global = st.slider("Temperatura Ambiente (°C)", 15.0, 45.0, step=0.5, key='temp_state')
-    hum_global = st.slider("Humedad Relativa (%)", 30.0, 100.0, step=1.0, key='hum_state')
+    usar_clima_real = st.toggle(
+        "Usar clima real ERA5 (hiperlocal)", key='clima_real_state',
+        help=("Activado: temperatura y humedad se toman de la serie histórica ERA5 de la "
+              "coordenada, día a día (modo producción, fiel a la tesis). "
+              "Desactivado: se usan los valores manuales de abajo como escenario de estrés "
+              "(modo usado por los presets de validación).")
+    )
+    temp_global = st.slider("Temperatura Ambiente (°C) — escenario manual", 15.0, 45.0, step=0.5, key='temp_state',
+                            disabled=usar_clima_real)
+    hum_global = st.slider("Humedad Relativa (%) — escenario manual", 30.0, 100.0, step=1.0, key='hum_state',
+                           disabled=usar_clima_real)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
     try:
@@ -935,7 +1006,7 @@ if uploaded:
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global)
+                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global, usar_clima_real)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
                 
