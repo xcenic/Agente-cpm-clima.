@@ -384,7 +384,7 @@ def auditar_xml(file):
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
-# MOTOR CPM ESTOCÁSTICO V4 (LÓGICA TERMODINÁMICA Y FINANCIERA CORREGIDA)
+# MOTOR CPM ESTOCÁSTICO V4 (LÓGICA TERMODINÁMICA Y FINANCIERA CORREGIDA - EL PARCHE DEFINITIVO)
 # ==============================================================================
 def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global):
     G = nx.DiGraph()
@@ -466,8 +466,11 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         tasa_evaporacion = max(0.1, (temp_global / 10.0) * ((100.0 - hum_global) / 20.0))
                         lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + lluvia_dia - tasa_evaporacion)
                         
-                        # Compuerta de Tolerancia Pluviométrica
-                        if prob_hist >= prob_min and lluvia_dia >= mm_min:
+                        # =========================================================
+                        # EL PARCHE APLICADO AQUÍ (Línea crítica para Ut y Pr)
+                        # =========================================================
+                        # Compuerta de Tolerancia Pluviométrica relajada (OR) para forzar evaluación OPEX
+                        if prob_hist >= prob_min or lluvia_dia >= mm_min:
                             stats_mm = max(stats_mm, lluvia_dia)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
                             
@@ -476,18 +479,19 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                             tr_horas_max = max(tr_horas_max, tr_horas)
                             ic_dinamico_max = max(ic_dinamico_max, ic_dinamico)
                             
-                            # Matemática de horas viables
-                            horas_lluvia = lluvia_dia / 5.0  # Asume intensidad 5mm/h
+                            # Matemática de horas viables forzada
+                            lluvia_eval = max(lluvia_dia, mm_min)
+                            horas_lluvia = lluvia_eval / 5.0  # Asume intensidad 5mm/h
                             horas_restantes = horas_jornada - (horas_lluvia + tr_horas)
                             
-                            # LA INDICATRIZ FINANCIERA (Ut)
+                            # LA INDICATRIZ FINANCIERA (Ut) - EVALUACIÓN BINARIA
                             if horas_restantes < umbral_horas:
-                                # Se cancela el día. Se inyecta EVB.
-                                retraso_teorico_dias += (prob_hist * ic_dinamico)
+                                # Se cancela el día. Penalización OPEX TOTAL (1.0 * impacto constructivo)
+                                retraso_teorico_dias += (1.0 * ic_dinamico)
                             else:
                                 # Hay calor. Secó rápido. Quedan suficientes horas útiles.
-                                # No se penaliza el cronograma.
                                 pass 
+                        # =========================================================
                                 
                 work_done += 1 
                 cursor += timedelta(days=1)
