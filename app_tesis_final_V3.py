@@ -181,10 +181,10 @@ def aplicar_preset():
         # Los presets son ensayos de estrés: usan override manual de temp/humedad
         st.session_state.clima_real_state = False
         
-        st.session_state.combo_ubicacion = "Santo Domingo Este - PROPACC LAS DAMAS"
-        st.session_state.lat_actual = 18.4758
-        st.session_state.lon_actual = -69.7781
-        st.session_state.ubicacion_nombre = "Santo Domingo Este - PROPACC LAS DAMAS"
+        st.session_state.combo_ubicacion = "Santo Domingo OESTE - AUTOPISTA DUARTE"
+        st.session_state.lat_actual = 18.574300
+        st.session_state.lon_actual = -70.106300
+        st.session_state.ubicacion_nombre = "Santo Domingo OESTE - AUTOPISTA DUARTE"
 
 # ==============================================================================
 # MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING (CORREGIDO)
