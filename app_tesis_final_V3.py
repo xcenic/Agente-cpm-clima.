@@ -36,6 +36,7 @@ if 'hum_state' not in st.session_state: st.session_state['hum_state'] = 85.0
 if 'pr_state' not in st.session_state: st.session_state['pr_state'] = 65
 if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 5.0
 if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 3.0
+if 'ventana_state' not in st.session_state: st.session_state['ventana_state'] = 7
 if 'dias_state' not in st.session_state: st.session_state['dias_state'] = ["Lun","Mar","Mié","Jue","Vie"]
 if 'clima_real_state' not in st.session_state: st.session_state['clima_real_state'] = True
 if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Ajuste manual de las variables estocásticas y logísticas del proyecto."
@@ -501,7 +502,23 @@ def contar_dias_habiles_shift(desde, hasta, dias_idx, feriados):
             n += 1
     return n
 
-def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global, usar_clima_real=False):
+# ==============================================================================
+# VENTANA CLIMATOLÓGICA: agrupa los registros históricos de ±W días alrededor de
+# una fecha-calendario para estimar P(d|Ur) sobre una muestra robusta (~N×(2W+1))
+# en lugar de la fecha aislada (N=10). Corrige el ruido de muestreo del estimador.
+# ==============================================================================
+def pool_ventana_climatica(cursor, clima, W):
+    pool = []
+    for off in range(-W, W + 1):
+        kk = (cursor + timedelta(days=off)).strftime('%m-%d')
+        h = clima.get(kk)
+        if h:
+            v = h.get('valores_mm')
+            if v:
+                pool.extend(v)
+    return pool
+
+def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar, umbral_horas, h_inicio, h_fin, use_nlp, use_ml, temp_global, hum_global, usar_clima_real=False, ventana_dias=7):
     G = nx.DiGraph()
     for _, row in df.iterrows():
         tid = row['ID']
@@ -551,7 +568,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         new_finish = finish_dt
         new_dur_float = base_dur_float
         
-        stats_prob = 0.0; prob_acumulada = 0.0; dias_evaluados = 0
+        stats_prob = 0.0; prob_acumulada = 0.0; dias_evaluados = 0; prob_pico = 0.0
         stats_mm = 0; rain_total = 0.0; retraso_teorico_dias = 0.0; last_rain_date = None
 
         ic_base = calcular_ic_ia(row['Name'], use_nlp)
@@ -577,16 +594,22 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         h = clima[k]
 
                         # ============================================================
-                        # FRECUENTISMO REAL (Ec. 5.4.2): P(d|Ur) = fracción de años cuyo
-                        # registro de ese día superó Ur. El suelo se alimenta con la media
-                        # CONDICIONAL de los eventos reales, no con el promedio diluido.
+                        # FRECUENTISMO REAL (Ec. 5.4.2) CON VENTANA CLIMATOLÓGICA:
+                        # P(d|Ur) = fracción de registros que superan Ur sobre la ventana
+                        # de ±ventana_dias alrededor de la fecha (muestra robusta), no la
+                        # fecha aislada. El suelo se alimenta con la media CONDICIONAL de
+                        # los eventos que superaron Ur (magnitud real del evento).
                         # ============================================================
-                        valores = h.get('valores_mm', None)
-                        if valores:
-                            n = len(valores)
-                            eventos = [v for v in valores if v >= mm_min]
+                        if ventana_dias and ventana_dias > 0:
+                            muestra = pool_ventana_climatica(cursor, clima, ventana_dias)
+                        else:
+                            muestra = h.get('valores_mm', None)
+
+                        if muestra:
+                            n = len(muestra)
+                            eventos = [v for v in muestra if v >= mm_min]
                             prob_exceed = len(eventos) / n if n > 0 else 0.0
-                            mm_evento = (sum(eventos) / len(eventos)) if eventos else max(valores)
+                            mm_evento = (sum(eventos) / len(eventos)) if eventos else max(muestra)
                         else:
                             prob_exceed = h.get('probabilidad', 0.0)
                             mm_evento = h.get('mm_promedio', 0.0)
@@ -605,6 +628,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
 
                         rain_total += h.get('mm_promedio', 0.0)
                         prob_acumulada += prob_exceed
+                        prob_pico = max(prob_pico, prob_exceed)   # probabilidad representativa (pico)
                         dias_evaluados += 1
 
                         tasa_evaporacion = max(0.1, (temp_d / 10.0) * ((100.0 - hum_d) / 20.0))
@@ -649,7 +673,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                 work_done += 1 
                 cursor += timedelta(days=1)
                 
-            stats_prob = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
+            # Se reporta la probabilidad REPRESENTATIVA (pico de la ventana) en lugar del
+            # promedio diluido por toda la tarea, que enmascaraba los días de mayor riesgo.
+            stats_prob = prob_pico if dias_evaluados > 0 else 0
+            stats_prob_media = (prob_acumulada / dias_evaluados) if dias_evaluados > 0 else 0
                 
             nota_cuantizacion = ""
             total_cuantizado = base_dur_float
@@ -792,7 +819,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
 # ==============================================================================
 # CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico V5", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico V7", layout="wide", page_icon="⚡")
 
 st.markdown("""
     <style>
@@ -854,7 +881,7 @@ with st.sidebar:
     usar_clima_real = st.toggle(
         "Usar clima real ERA5 (hiperlocal)", key='clima_real_state',
         help=("Activado: temperatura y humedad se toman de la serie histórica ERA5 de la "
-              "coordenada, día a día (modo producción). "
+              "coordenada, día a día (modo producción, fiel a la tesis). "
               "Desactivado: se usan los valores manuales de abajo como escenario de estrés "
               "(modo usado por los presets de validación).")
     )
@@ -875,7 +902,7 @@ with st.sidebar:
 banner_html = """
 <div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
     <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
-        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V5 — Auditoría Lógica Aplicada</span></h1>
+        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V7 — Ventana Climatológica</span></h1>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
@@ -999,14 +1026,22 @@ if uploaded:
             help=(
                 "Horas útiles mínimas que deben quedar en la jornada tras la lluvia y el secado "
                 "para justificar encender la flotilla. Si las horas restantes son menores a este valor, "
-                "el día se declara perdido (Indicatriz de Heaviside = 1). "
-                "Nota: este parámetro operacionaliza la compuerta logística Ut de la tesis."
+                "la jornada se descarta (operador de cuantización logística Ut)."
+            )
+        )
+        ventana_dias = st.slider(
+            "Ventana climatológica (± días) para P(d|Ur)", 0, 15, key='ventana_state',
+            help=(
+                "Ancho de la ventana de días alrededor de cada fecha sobre la que se estima la "
+                "probabilidad frecuentista P(d|Ur). Con 0 se usa solo la fecha exacta (estimador "
+                "ruidoso, N≈10). Con ±7 se agrupan ~15 días (N≈150), produciendo una probabilidad "
+                "estacional estable. Práctica climatológica estándar."
             )
         )
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global, usar_clima_real)
+                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global, usar_clima_real, ventana_dias)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
                 
