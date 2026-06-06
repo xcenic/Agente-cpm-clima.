@@ -585,6 +585,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
             lluvia_acumulada_terreno = 0.0       # humedad del suelo (mm equivalentes)
             deuda_secado_horas = 0.0             # horas de inoperatividad pendientes (recuperación)
             prob_vigente = 0.0                   # P(d|Ur) del evento que originó la deuda activa
+            ic_vigente = 1.0                     # Q(Ic) severidad vigente (NLP·ML) — Ec. 5.9
             horas_jornada = float(h_fin - h_inicio) if h_fin > h_inicio else 8.0
 
             while work_done < work_needed:
@@ -650,6 +651,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                             horas_lluvia = mm_evento / 5.0          # intensidad de referencia 5 mm/h
                             deuda_secado_horas = max(deuda_secado_horas, tr_horas) + horas_lluvia
                             prob_vigente = prob_dia
+                            # Q(Ic): severidad constructiva. El NLP fija ic_base (material) y el ML
+                            # fija tr (que alimenta ic_dinamico). Este factor reintroduce la Ec. 5.9
+                            # EVB = Σ P · Q(Ic), haciendo que AMBAS capas (NLP y ML) afecten el retraso.
+                            ic_vigente = ic_dinamico
                         else:
                             lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno - tasa_evaporacion)
 
@@ -668,8 +673,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                             # Con Hw_min alto, hasta lluvias mínimas descartan el día (caso OPEX).
                             ventana_util = max(0.5, horas_jornada - umbral_horas)
                             fraccion_perdida = min(1.0, horas_perdidas_hoy / ventana_util)
-                            # Valor esperado de jornadas perdidas (ponderado por la probabilidad)
-                            retraso_teorico_dias += prob_vigente * fraccion_perdida
+                            # EVB = Σ P · Q(Ic) (Ec. 5.9): el impacto se pondera por la probabilidad
+                            # frecuentista Y por la severidad constructiva Q(Ic). ic_vigente integra
+                            # el material (NLP) y la recuperación tr (ML), así ambas capas son medibles.
+                            retraso_teorico_dias += prob_vigente * fraccion_perdida * ic_vigente
                             deuda_secado_horas = max(0.0, deuda_secado_horas - horas_jornada)
                         # =========================================================
 
@@ -905,7 +912,7 @@ with st.sidebar:
 banner_html = """
 <div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
     <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
-        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V8 — Pr Recalibrado + Semáforo</span></h1>
+        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V9 — Capa Cognitiva Medible</span></h1>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
