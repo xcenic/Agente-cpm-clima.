@@ -276,50 +276,100 @@ def calcular_tr_y_ic_dinamico(lluvia_mm, temp_c, humedad_pct, tipo_suelo_ic, usa
     return round(tr_horas, 1), ic_dinamico
 
 def agente_prescriptivo_mitigacion(df_tareas, evb_total):
-    sugerencias = []
-    if evb_total < 3:
-        return ["✅ **Red Logística Estable:** El riesgo climático actual es bajo y puede ser absorbido por las holguras normales del cronograma."]
-    
-    # Nodos Bloqueados: alto tiempo de secado (ΩB)
-    tierras = df_tareas[pd.to_numeric(df_tareas['Tr (Secado/Horas)'], errors='coerce') >= 24.0].copy()
-    # Nodos Refugio: tareas estructurales con Ic bajo (ΩR)
-    refugios = df_tareas[pd.to_numeric(df_tareas['Ic_Estimado'], errors='coerce') <= 1.0].copy()
+    """Genera un mini-informe prescriptivo del estado analizado (siempre devuelve contenido)."""
+    reporte = []
 
-    if not tierras.empty:
-        peor_tarea = tierras.loc[pd.to_numeric(tierras['Días Impacto'], errors='coerce').idxmax()]
-        sugerencias.append(
-            f"🧠 **Alerta Geotécnica:** La tarea **'{peor_tarea['Actividad']}'** es el principal cuello de botella logístico. (Alto Tiempo de Secado inferido por IA)."
+    # --- Base de datos: solo actividades reales ---
+    act = df_tareas[(df_tareas['IsSummary'] == False) & (df_tareas['IsMilestone'] == False)].copy()
+    act['_imp'] = pd.to_numeric(act['Días Impacto'], errors='coerce').fillna(0)
+    act['_tr']  = pd.to_numeric(act['Tr (Secado/Horas)'], errors='coerce').fillna(0)
+    act['_ic']  = pd.to_numeric(act['Ic_Estimado'], errors='coerce').fillna(0)
+
+    n_total = len(act)
+    afectadas = act[act['_imp'] > 0]
+    n_afect = len(afectadas)
+    criticas = act[act['Ruta Crítica'].astype(str) == "Sí"]
+    n_crit = len(criticas)
+    pct = (n_afect / n_total * 100.0) if n_total > 0 else 0.0
+
+    # --- 1) Resumen ejecutivo del estado ---
+    if evb_total <= 0 and n_afect == 0:
+        nivel = "🟢 ESTABLE"
+    elif evb_total < 5:
+        nivel = "🟡 RIESGO MODERADO"
+    else:
+        nivel = "🔴 RIESGO ALTO"
+    reporte.append(
+        f"📋 **Informe de Estado — {nivel}**<br>"
+        f"El proyecto acumula un retraso climático estimado de **{int(round(evb_total))} días hábiles**. "
+        f"Se analizaron **{n_total} actividades**, de las cuales **{n_afect} ({pct:.0f}%)** presentan impacto pluviométrico "
+        f"y **{n_crit}** se encuentran sobre la Ruta Crítica estocástica."
+    )
+
+    # Estado estable: no hay nada más que prescribir
+    if n_afect == 0:
+        reporte.append("✅ **Diagnóstico:** El riesgo climático actual es absorbido por las holguras del cronograma. No se requieren medidas de mitigación.")
+        return reporte
+
+    # --- 2) Cuello de botella principal (mayor impacto) ---
+    peor = afectadas.loc[afectadas['_imp'].idxmax()]
+    reporte.append(
+        f"🧠 **Cuello de botella principal:** **'{peor['Actividad']}'** concentra el mayor impacto "
+        f"({int(peor['_imp'])} días), con un tiempo de secado inferido de **{peor['_tr']:.0f} h** "
+        f"y coeficiente de vulnerabilidad Ic={peor['_ic']:.1f}."
+    )
+
+    # --- 3) Top de actividades más afectadas ---
+    top = afectadas.sort_values('_imp', ascending=False).head(3)
+    lineas = "<br>".join(
+        f"&nbsp;&nbsp;• **{t['Actividad']}** — {int(t['_imp'])} d "
+        f"({'Ruta Crítica' if str(t['Ruta Crítica'])=='Sí' else 'con holgura'})"
+        for _, t in top.iterrows()
+    )
+    reporte.append(f"📌 **Actividades más afectadas:**<br>{lineas}")
+
+    # --- 4) Recomendación logística con verificación de solapamiento (Ec. 6.10) ---
+    tierras = afectadas[afectadas['_tr'] >= 12.0]
+    refugios = act[act['_ic'] <= 1.0]
+    refugio_solapado = None
+    if not tierras.empty and not refugios.empty:
+        eb_ini = pd.to_datetime(peor.get('Inicio Nuevo'), errors='coerce')
+        eb_fin = pd.to_datetime(peor.get('Fin Nuevo'), errors='coerce')
+        if pd.notna(eb_ini) and pd.notna(eb_fin):
+            for _, ref in refugios.iterrows():
+                er_ini = pd.to_datetime(ref.get('Inicio Nuevo'), errors='coerce')
+                er_fin = pd.to_datetime(ref.get('Fin Nuevo'), errors='coerce')
+                if pd.notna(er_ini) and pd.notna(er_fin) and max(eb_ini, er_ini) <= min(eb_fin, er_fin):
+                    refugio_solapado = ref
+                    break
+
+    if refugio_solapado is not None:
+        reporte.append(
+            f"👉 **Estrategia recomendada (Ec. 6.10 — solapamiento confirmado):** Reasignar temporalmente la "
+            f"maquinaria del frente bloqueado hacia el nodo refugio estructural **'{refugio_solapado['Actividad']}'** "
+            f"(Ic={refugio_solapado['_ic']:.1f}), cuya ventana operativa se solapa con el período de parálisis, "
+            f"evitando que los recursos queden inactivos."
+        )
+    elif not tierras.empty:
+        reporte.append(
+            "⚠️ **Estrategia recomendada:** No hay frentes estructurales con ventana solapada al período de parálisis. "
+            "Se recomienda **reprogramar el inicio** del frente afectado hacia una ventana de menor probabilidad de lluvia "
+            "o evaluar la **movilización de recursos** a otro proyecto durante el secado."
+        )
+    else:
+        reporte.append(
+            "👉 **Estrategia recomendada:** Los impactos provienen de lluvias de baja persistencia. Se recomienda "
+            "**ajustar la secuencia de tareas** para ejecutar las partidas sensibles en las ventanas secas detectadas "
+            "y reforzar el drenaje superficial de los frentes activos."
         )
 
-        # W-02 CORRECCIÓN: verificar solapamiento temporal (Ec. 6.10) antes de prescribir reasignación
-        # H(vb, vr) = 1 si max(ES'b, ES'r) <= min(EF'b, EF'r)
-        refugio_solapado = None
-        if not refugios.empty:
-            eb_ini = pd.to_datetime(peor_tarea.get('Inicio Nuevo'), errors='coerce')
-            eb_fin = pd.to_datetime(peor_tarea.get('Fin Nuevo'), errors='coerce')
-            if pd.notna(eb_ini) and pd.notna(eb_fin):
-                for _, ref in refugios.iterrows():
-                    er_ini = pd.to_datetime(ref.get('Inicio Nuevo'), errors='coerce')
-                    er_fin = pd.to_datetime(ref.get('Fin Nuevo'), errors='coerce')
-                    if pd.notna(er_ini) and pd.notna(er_fin):
-                        # Condición de solapamiento: max(ini_b, ini_r) <= min(fin_b, fin_r)
-                        if max(eb_ini, er_ini) <= min(eb_fin, er_fin):
-                            refugio_solapado = ref
-                            break
-
-        if refugio_solapado is not None:
-            sugerencias.append(
-                f"👉 **Estrategia Logística Sugerida (Ec. 6.10 — Solapamiento Confirmado):** "
-                f"Reasignar temporalmente la maquinaria hacia el nodo refugio estructural "
-                f"**'{refugio_solapado['Actividad']}'** (Ic={refugio_solapado['Ic_Estimado']}), "
-                f"cuya ventana operativa se solapa con el período de parálisis."
-            )
-        else:
-            sugerencias.append(
-                "⚠️ **Sin Nodo Refugio Disponible:** No se detectaron frentes estructurales con ventana operativa solapada al período de parálisis. "
-                "Evaluar reprogramación de inicio del frente afectado o movilización de recursos a otro proyecto."
-            )
-    return sugerencias
+    if n_crit > 0:
+        reporte.append(
+            f"🚨 **Atención Ruta Crítica:** {n_crit} actividad(es) crítica(s) absorbieron el retraso y empujan la fecha "
+            f"de término del proyecto. Prioriza su mitigación: cualquier día ganado en ellas se traduce directamente en "
+            f"adelanto del hito final."
+        )
+    return reporte
 
 # ==============================================================================
 # FUNCIONES DE SOPORTE Y DATOS CLIMÁTICOS
@@ -829,7 +879,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
 # ==============================================================================
 # CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico V8", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="CHRONOFLUX AI", layout="wide", page_icon="⚡")
 
 st.markdown("""
     <style>
@@ -912,7 +962,7 @@ with st.sidebar:
 banner_html = """
 <div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
     <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
-        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V9 — Capa Cognitiva Medible</span></h1>
+        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI</h1>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
@@ -1109,7 +1159,8 @@ if uploaded:
                 df_s = df_s.sort_values('Fecha')
                 df_s['Acumulado'] = df_s.groupby('Tipo')['Count'].cumsum()
                 
-                fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'}, markers=True, template='plotly_white')
+                fig_s = px.line(df_s, x='Fecha', y='Acumulado', color='Tipo', color_discrete_map={'Base': '#94A3B8', 'Sugerido': '#AF1E2D'}, markers=True, template='plotly_white', line_shape='spline')
+                fig_s.update_traces(line=dict(smoothing=1.3))
                 fig_s.update_layout(yaxis_title="Tareas Terminadas (Acumulado)", xaxis_title="Fecha de Finalización")
                 st.plotly_chart(fig_s, use_container_width=True)
                 st.caption(
@@ -1160,6 +1211,12 @@ if uploaded:
                 rojo   = wb.add_format({'bg_color': '#F8B4B4', 'font_color': '#7F1D1D'})   # crítico
                 naranja= wb.add_format({'bg_color': '#FDE2B4', 'font_color': '#7C2D12'})   # alto
                 verde  = wb.add_format({'bg_color': '#BBF7D0', 'font_color': '#14532D'})   # normal/sin impacto
+                # Variantes con formato SHORT DATE (num_format 14 = fecha corta del sistema)
+                rojo_f   = wb.add_format({'bg_color': '#F8B4B4', 'font_color': '#7F1D1D', 'num_format': 14, 'align': 'center'})
+                naranja_f= wb.add_format({'bg_color': '#FDE2B4', 'font_color': '#7C2D12', 'num_format': 14, 'align': 'center'})
+                verde_f  = wb.add_format({'bg_color': '#BBF7D0', 'font_color': '#14532D', 'num_format': 14, 'align': 'center'})
+                fmt_fecha_de = {id(rojo): rojo_f, id(naranja): naranja_f, id(verde): verde_f}
+                cols_fecha = {'Inicio Base', 'Fin Base', 'Inicio Nuevo', 'Fin Nuevo', 'Fecha Última Lluvia'}
                 fmt_celda = wb.add_format({'border': 1})
 
                 # Título y subtítulo
@@ -1175,7 +1232,7 @@ if uploaded:
                 idx_rc     = cols_exist.index('Ruta Crítica') if 'Ruta Crítica' in cols_exist else None
                 idx_imp    = cols_exist.index('Días Impacto') if 'Días Impacto' in cols_exist else None
 
-                # Pintado fila por fila (semáforo)
+                # Pintado fila por fila (semáforo + fechas en formato corto)
                 for r in range(len(df_export)):
                     fila = df_export.iloc[r]
                     riesgo = str(fila['Nivel Riesgo']) if idx_riesgo is not None else ""
@@ -1188,10 +1245,18 @@ if uploaded:
                         fmt_fila = naranja
                     else:
                         fmt_fila = verde
+                    fmt_fila_fecha = fmt_fecha_de[id(fmt_fila)]
                     for j, c in enumerate(cols_exist):
                         val = fila[c]
-                        if pd.isna(val): val = "-"
-                        ws.write(3 + r, j, val, fmt_fila)
+                        if c in cols_fecha:
+                            dval = pd.to_datetime(val, errors='coerce')
+                            if pd.notna(dval):
+                                ws.write_datetime(3 + r, j, dval.to_pydatetime(), fmt_fila_fecha)
+                            else:
+                                ws.write(3 + r, j, "-", fmt_fila)
+                        else:
+                            if pd.isna(val): val = "-"
+                            ws.write(3 + r, j, val, fmt_fila)
 
                 # Ancho de columnas
                 anchos = {'Actividad': 34, 'WBS': 10, 'Inicio Base': 12, 'Fin Base': 12, 'Inicio Nuevo': 12, 'Fin Nuevo': 12,
