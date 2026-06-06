@@ -84,79 +84,79 @@ PRESETS_MODELOS = {
         "desc": "Baseline determinista. IA desactivada y umbrales inalcanzables. EVB nulo: punto cero para medir desplazamientos."
     },
     "02: CFX-VAL-02 Ciclones (Otoño)": {
-        "nlp": True, "ml": True, "pr": 40, "ur": 1.5, "ut": 3.0, "temp": 28.5, "hum": 74.8, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 15, "ur": 1.5, "ut": 3.0, "temp": 28.5, "hum": 74.8, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Meses críticos Sept-Nov. Pr y Ur bajos: hiper-sensible a lluvias convectivas frecuentes. Alta humedad extiende el Tr."
     },
     "03: CFX-VAL-03 Estiaje (Ventana Seca)": {
-        "nlp": True, "ml": True, "pr": 75, "ur": 5.0, "ut": 2.0, "temp": 26.4, "hum": 65.6, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 45, "ur": 5.0, "ut": 2.0, "temp": 26.4, "hum": 65.6, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Feb-Mar. Pr alto y baja humedad: el modelo reconoce ventanas de oportunidad y no penaliza injustificadamente."
     },
     "04: CFX-VAL-04 OPEX Moderado": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 25, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Protección de costos indirectos. Si la lluvia arruina media jornada, se descarta el día para proteger el OPEX."
     },
     "05: CFX-VAL-05 HEAT Evaporación": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 32.5, "hum": 55.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 20, "ur": 3.5, "ut": 2.5, "temp": 32.5, "hum": 55.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Sequía y radiación alta. El Random Forest minimiza Tr; la habilitación topológica post-lluvia se acelera."
     },
     "06: CFX-VAL-06 Vaguada (Saturación)": {
-        "nlp": True, "ml": True, "pr": 40, "ur": 2.0, "ut": 4.0, "temp": 24.5, "hum": 95.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 15, "ur": 2.0, "ut": 4.0, "temp": 24.5, "hum": 95.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Escenario adverso: baja temperatura + 95% humedad anulan la evaporación. La terracería colapsa (Tr > 72h)."
     },
     "07: CFX-VAL-07 Fallo NLP (Ceguera Semántica)": {
-        "nlp": False, "ml": True, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": False, "ml": True, "pr": 25, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Desactiva el Transformer Zero-Shot. El sistema recurre al fallback RegEx; valida el valor de la semántica en el Ic."
     },
     "08: CFX-VAL-08 Fallo PIML (Ceguera Térmica)": {
-        "nlp": True, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": False, "pr": 25, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Desactiva el Random Forest. Tr estático (48h arcillas) ignorando el microclima; mide el aporte de la IA termodinámica."
     },
     "09: CFX-VAL-09 Fast-Tracking 11h (L-D)": {
-        "nlp": True, "ml": True, "pr": 55, "ur": 4.0, "ut": 1.5, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],
+        "nlp": True, "ml": True, "pr": 20, "ur": 4.0, "ut": 1.5, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"],
         "desc": "Jornada 11h, Lun-Dom. El impacto pluviométrico se diluye sobre un divisor Hw mayor. Evalúa la absorción por horas extra."
     },
     "10: CFX-VAL-10 Collapse (Worst-Case)": {
-        "nlp": True, "ml": True, "pr": 30, "ur": 1.0, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 10, "ur": 1.0, "ut": 6.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Máxima sensibilidad. Cualquier llovizna se registra; con poco remanente operativo se cancela el día. Límite superior de la deriva."
     },
     "11: CFX-VAL-11 Arcilla A-7-6": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 22, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Estratos cohesivos de alta plasticidad (Ic=3.0). El RF computa Tr asintóticamente alto por retención capilar."
     },
     "12: CFX-VAL-12 Granular A-1-a": {
-        "nlp": True, "ml": True, "pr": 60, "ur": 5.0, "ut": 2.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 22, "ur": 5.0, "ut": 2.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Permeabilidad y flujo gravitacional (Ic=2.0). Tolerancia de lámina alta: restitución rápida del Módulo Resiliente."
     },
     "13: CFX-VAL-13 Depresión (Llovizna Persistente)": {
-        "nlp": True, "ml": True, "pr": 15, "ur": 0.5, "ut": 6.5, "temp": 25.0, "hum": 85.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 10, "ur": 0.5, "ut": 6.5, "temp": 25.0, "hum": 85.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Baja presión sin inundación pero satura la obra. Ur muy bajo + Ut alto: las trazas constantes paralizan la terracería."
     },
     "14: CFX-VAL-14 Fast-Tracking 11h": {
-        "nlp": True, "ml": True, "pr": 55, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 20, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Ventana operativa extendida (Hw=11h). Un evento de 2h se diluye; verifica el operador de cuantización Q."
     },
     "15: CFX-VAL-15 Isla de Calor (38°C)": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 45.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 20, "ur": 3.5, "ut": 2.5, "temp": 38.0, "hum": 45.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Sequía extrema. El ML dictamina secado ultrarrápido (Tr→0); los frentes se habilitan casi inmediatamente."
     },
     "16: CFX-VAL-16 Saturación Atmosférica (98%)": {
-        "nlp": True, "ml": True, "pr": 65, "ur": 3.5, "ut": 2.5, "temp": 24.0, "hum": 98.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 20, "ur": 3.5, "ut": 2.5, "temp": 24.0, "hum": 98.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Niebla densa: el aire no absorbe humedad, se detiene la evaporación. El RF castiga severamente la recuperación."
     },
     "17: CFX-VAL-17 OPEX Severo": {
-        "nlp": True, "ml": True, "pr": 50, "ur": 2.0, "ut": 7.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 18, "ur": 2.0, "ut": 7.0, "temp": 27.5, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Frontera financiera. Con Ut=7.0h, una hora de lluvia encarece demasiado; se descartan días con mínimas perturbaciones."
     },
     "18: CFX-VAL-18 Flash Floods (Torrencial)": {
-        "nlp": True, "ml": True, "pr": 10, "ur": 15.0, "ut": 1.0, "temp": 28.0, "hum": 75.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 12, "ur": 15.0, "ut": 1.0, "temp": 28.0, "hum": 75.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Aísla aguaceros torrenciales (Ur=15mm), ignorando lloviznas. Solo inyecta EVB ante volúmenes masivos de agua."
     },
     "19: CFX-VAL-19 Blind (Referencia Ciega)": {
-        "nlp": False, "ml": False, "pr": 60, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": False, "ml": False, "pr": 25, "ur": 3.0, "ut": 3.0, "temp": 28.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Apaga semántica y termodinámica. Penalizaciones estáticas: contraste para medir los días que salva la IA."
     },
     "20: CFX-VAL-20 Cisne Negro (Stress Máximo)": {
-        "nlp": True, "ml": True, "pr": 10, "ur": 0.1, "ut": 8.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 8, "ur": 0.1, "ut": 8.0, "temp": 25.0, "hum": 88.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Tensión máxima: cualquier rocío (0.1mm) paraliza. Fuerza la mutación salvaje de la Ruta Crítica y al Agente Prescriptivo."
     }
 }
@@ -594,30 +594,29 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         h = clima[k]
 
                         # ============================================================
-                        # FRECUENTISMO REAL (Ec. 5.4.2) CON VENTANA CLIMATOLÓGICA:
-                        # P(d|Ur) = fracción de registros que superan Ur sobre la ventana
-                        # de ±ventana_dias alrededor de la fecha (muestra robusta), no la
-                        # fecha aislada. El suelo se alimenta con la media CONDICIONAL de
-                        # los eventos que superaron Ur (magnitud real del evento).
+                        # PROBABILIDAD FRECUENTISTA SIMPLE  P(d) = n/N  (Ec. 5.4.2)
+                        # n = años en que LLOVIÓ en esa fecha (ventana), N = total de años.
+                        # Pr es un umbral sobre ESTA probabilidad (escala real 0-100%).
+                        # El umbral de intensidad Ur se aplica POR SEPARADO sobre la
+                        # magnitud del evento; NO se mezcla dentro de la probabilidad.
                         # ============================================================
                         if ventana_dias and ventana_dias > 0:
                             muestra = pool_ventana_climatica(cursor, clima, ventana_dias)
                         else:
                             muestra = h.get('valores_mm', None)
 
+                        RAIN_REF = 1.0   # mm: define "llovió ese día" (traza significativa)
                         if muestra:
                             n = len(muestra)
-                            eventos = [v for v in muestra if v >= mm_min]
-                            prob_exceed = len(eventos) / n if n > 0 else 0.0
-                            mm_evento = (sum(eventos) / len(eventos)) if eventos else max(muestra)
+                            dias_lluvia = [v for v in muestra if v >= RAIN_REF]
+                            prob_dia = len(dias_lluvia) / n if n > 0 else 0.0          # P(d) = n/N simple
+                            mm_evento = (sum(dias_lluvia) / len(dias_lluvia)) if dias_lluvia else 0.0  # magnitud típica
                         else:
-                            prob_exceed = h.get('probabilidad', 0.0)
+                            prob_dia = h.get('probabilidad', 0.0)
                             mm_evento = h.get('mm_promedio', 0.0)
 
                         # ============================================================
-                        # AE-04: fuente termodinámica. Por defecto se usan temp/humedad
-                        # REALES de ERA5 de ese día. En modo escenario (presets de estrés)
-                        # se usan los valores globales del panel.
+                        # AE-04: fuente termodinámica (ERA5 real por defecto / override).
                         # ============================================================
                         if usar_clima_real:
                             temp_d = h.get('temp_dia', temp_global)
@@ -627,14 +626,18 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                             hum_d = hum_global
 
                         rain_total += h.get('mm_promedio', 0.0)
-                        prob_acumulada += prob_exceed
-                        prob_pico = max(prob_pico, prob_exceed)   # probabilidad representativa (pico)
+                        prob_acumulada += prob_dia
+                        prob_pico = max(prob_pico, prob_dia)   # probabilidad representativa (pico)
                         dias_evaluados += 1
 
                         tasa_evaporacion = max(0.1, (temp_d / 10.0) * ((100.0 - hum_d) / 20.0))
 
-                        # Compuerta frecuentista (Ec. 5.4.3): día de riesgo si P(d|Ur) >= Pr
-                        if prob_exceed >= prob_min:
+                        # ============================================================
+                        # GATE 1 (Pr): el día es de riesgo si llueve con frecuencia >= Pr.
+                        # GATE 2 (Ur): además, la lluvia típica debe superar Ur mm para
+                        #              detener faenas (lloviznas por debajo no impactan).
+                        # ============================================================
+                        if prob_dia >= prob_min and mm_evento >= mm_min:
                             lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno + mm_evento - tasa_evaporacion)
                             stats_mm = max(stats_mm, mm_evento)
                             if h['ultima_fecha_lluvia']: last_rain_date = h['ultima_fecha_lluvia'].date()
@@ -643,11 +646,10 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                             tr_horas_max = max(tr_horas_max, tr_horas)
                             ic_dinamico_max = max(ic_dinamico_max, ic_dinamico)
 
-                            # AE-01/05: la recuperación se suma a la deuda. El secado pendiente
-                            # se solapa (no se apila): se toma el máximo y se añade la lluvia activa.
+                            # La recuperación se suma a la deuda (secado solapado + lluvia activa).
                             horas_lluvia = mm_evento / 5.0          # intensidad de referencia 5 mm/h
                             deuda_secado_horas = max(deuda_secado_horas, tr_horas) + horas_lluvia
-                            prob_vigente = prob_exceed
+                            prob_vigente = prob_dia
                         else:
                             lluvia_acumulada_terreno = max(0.0, lluvia_acumulada_terreno - tasa_evaporacion)
 
@@ -659,12 +661,13 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                         # ============================================================
                         if deuda_secado_horas > 1e-6:
                             horas_perdidas_hoy = min(horas_jornada, deuda_secado_horas)
-                            horas_productivas_hoy = horas_jornada - horas_perdidas_hoy
-                            fraccion_perdida = horas_perdidas_hoy / horas_jornada
-                            # AE-01 (Ut): si lo productivo remanente < umbral de rentabilidad,
-                            # la jornada completa se descarta (operador de cuantización Q).
-                            if horas_productivas_hoy < umbral_horas:
-                                fraccion_perdida = 1.0
+                            # AE-01 (Ut/Hw_min como palanca OPEX monótona): Hw_min reduce la
+                            # "ventana útil" que se necesita para que la jornada sea rentable.
+                            # La fracción perdida se mide contra (jornada − Hw_min): cuanto mayor
+                            # Hw_min, menor la ventana y mayor el impacto de una misma perturbación.
+                            # Con Hw_min alto, hasta lluvias mínimas descartan el día (caso OPEX).
+                            ventana_util = max(0.5, horas_jornada - umbral_horas)
+                            fraccion_perdida = min(1.0, horas_perdidas_hoy / ventana_util)
                             # Valor esperado de jornadas perdidas (ponderado por la probabilidad)
                             retraso_teorico_dias += prob_vigente * fraccion_perdida
                             deuda_secado_horas = max(0.0, deuda_secado_horas - horas_jornada)
@@ -819,7 +822,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
 # ==============================================================================
 # CONFIGURACIÓN Y ESTILO (UI/UX MODERN SAAS)
 # ==============================================================================
-st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico V7", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="CHRONOFLUX | Motor CPM Estocástico V8", layout="wide", page_icon="⚡")
 
 st.markdown("""
     <style>
@@ -902,7 +905,7 @@ with st.sidebar:
 banner_html = """
 <div id="particles-js" style="position: relative; width: 100%; height: 120px; background-color: #0F172A; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
     <div style="position: absolute; top: 50%; left: 40px; transform: translateY(-50%); z-index: 10; color: white;">
-        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V7 — Ventana Climatológica</span></h1>
+        <h1 style="margin:0; font-weight: 800; font-family: 'Inter', sans-serif; font-size: 2.8rem; letter-spacing: 2px;">CHRONOFLUX AI <span style="font-size:1.2rem; opacity:0.6; letter-spacing:0.05em;">V8 — Pr Recalibrado + Semáforo</span></h1>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
@@ -1018,26 +1021,19 @@ if uploaded:
         st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
         
         c_p, c_m, c_u = st.columns(3)
-        prob = c_p.slider("Probabilidad de Lluvia (%) — Pr", 0, 100, key='pr_state') / 100.0
-        mm = c_m.slider("Intensidad mínima (mm/día) — Ur", 0.0, 50.0, step=0.5, key='ur_state')
+        prob = c_p.slider("Probabilidad de Lluvia (%) — Pr", 0, 100, key='pr_state',
+                          help="Frecuencia histórica P(d)=n/N: %% de años en que llovió en esa fecha (ventana). Solo se evalúan días donde llueve al menos este %% de los años.") / 100.0
+        mm = c_m.slider("Intensidad mínima (mm/día) — Ur", 0.0, 50.0, step=0.5, key='ur_state',
+                        help="La lluvia típica del día debe superar estos mm para detener faenas. Lloviznas por debajo de Ur no generan impacto. Es un filtro SEPARADO de la probabilidad.")
         umbral_horas = c_u.slider(
             "Horas mínimas de jornada viable — Hw_min",
             1.0, 8.0, step=0.5, key='ut_state',
             help=(
-                "Horas útiles mínimas que deben quedar en la jornada tras la lluvia y el secado "
-                "para justificar encender la flotilla. Si las horas restantes son menores a este valor, "
-                "la jornada se descarta (operador de cuantización logística Ut)."
+                "Solo actúa en días que YA son de riesgo (pasaron Pr y Ur). Si tras lluvia + secado "
+                "quedan menos horas productivas que este valor, la jornada se pierde completa."
             )
         )
-        ventana_dias = st.slider(
-            "Ventana climatológica (± días) para P(d|Ur)", 0, 15, key='ventana_state',
-            help=(
-                "Ancho de la ventana de días alrededor de cada fecha sobre la que se estima la "
-                "probabilidad frecuentista P(d|Ur). Con 0 se usa solo la fecha exacta (estimador "
-                "ruidoso, N≈10). Con ±7 se agrupan ~15 días (N≈150), produciendo una probabilidad "
-                "estacional estable. Práctica climatológica estándar."
-            )
-        )
+        ventana_dias = 0  # Pr = n/N puro por fecha-calendario (Ec. 5.4.2 de la tesis, sin suavizado)
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
@@ -1136,12 +1132,66 @@ if uploaded:
             p_name = st.session_state.get('project_name', 'Proyecto')
             safe_name = "".join([c for c in p_name if c.isalnum() or c in (' ', '_')]).strip()
             
-            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 'Días Impacto', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
-            
+            columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 'Días Impacto', 'Nivel Riesgo', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
+            cols_exist = [c for c in columnas_exportar if c in final.columns]
+            df_export = final[cols_exist].copy()
+            # Orden: primero las más afectadas (mayor Días Impacto arriba)
+            if 'Días Impacto' in df_export.columns:
+                df_export['_orden'] = pd.to_numeric(df_export['Días Impacto'], errors='coerce').fillna(0)
+                df_export = df_export.sort_values('_orden', ascending=False).drop(columns=['_orden'])
+
             with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
-                final[columnas_exportar].to_excel(w, index=False, sheet_name="Sugerencias", startrow=1)
-                wb = w.book; ws = w.sheets['Sugerencias']
-                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white'})
-                ws.merge_range(0, 0, 0, len(columnas_exportar)-1, f"REPORTE: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
+                df_export.to_excel(w, index=False, sheet_name="Reporte", startrow=2)
+                wb = w.book; ws = w.sheets['Reporte']
+                ncol = len(cols_exist)
+
+                # --- Formatos ---
+                fmt_title = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 13, 'border': 1})
+                fmt_sub   = wb.add_format({'italic': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#334155', 'font_color': '#E2E8F0', 'font_size': 9})
+                fmt_head  = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#0F172A', 'font_color': 'white', 'border': 1, 'text_wrap': True})
+                # Semáforo (relleno por fila según severidad)
+                rojo   = wb.add_format({'bg_color': '#F8B4B4', 'font_color': '#7F1D1D'})   # crítico
+                naranja= wb.add_format({'bg_color': '#FDE2B4', 'font_color': '#7C2D12'})   # alto
+                verde  = wb.add_format({'bg_color': '#BBF7D0', 'font_color': '#14532D'})   # normal/sin impacto
+                fmt_celda = wb.add_format({'border': 1})
+
+                # Título y subtítulo
+                ws.merge_range(0, 0, 0, ncol-1, f"REPORTE CLIMÁTICO: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
+                ws.merge_range(1, 0, 1, ncol-1, "Semáforo de Afectación  \u25CF Rojo = Ruta Crítica / Crítico   \u25CF Naranja = Alto impacto   \u25CF Verde = Normal / sin impacto", fmt_sub)
+
+                # Encabezados (fila 2)
+                for j, c in enumerate(cols_exist):
+                    ws.write(2, j, c, fmt_head)
+
+                # Índices de columnas clave
+                idx_riesgo = cols_exist.index('Nivel Riesgo') if 'Nivel Riesgo' in cols_exist else None
+                idx_rc     = cols_exist.index('Ruta Crítica') if 'Ruta Crítica' in cols_exist else None
+                idx_imp    = cols_exist.index('Días Impacto') if 'Días Impacto' in cols_exist else None
+
+                # Pintado fila por fila (semáforo)
+                for r in range(len(df_export)):
+                    fila = df_export.iloc[r]
+                    riesgo = str(fila['Nivel Riesgo']) if idx_riesgo is not None else ""
+                    rc = str(fila['Ruta Crítica']) if idx_rc is not None else ""
+                    try: imp = float(fila['Días Impacto']) if idx_imp is not None else 0.0
+                    except: imp = 0.0
+                    if "Crítico" in riesgo or rc == "Sí":
+                        fmt_fila = rojo
+                    elif riesgo == "Alto" or imp > 2:
+                        fmt_fila = naranja
+                    else:
+                        fmt_fila = verde
+                    for j, c in enumerate(cols_exist):
+                        val = fila[c]
+                        if pd.isna(val): val = "-"
+                        ws.write(3 + r, j, val, fmt_fila)
+
+                # Ancho de columnas
+                anchos = {'Actividad': 34, 'WBS': 10, 'Inicio Base': 12, 'Fin Base': 12, 'Inicio Nuevo': 12, 'Fin Nuevo': 12,
+                          'Nivel Riesgo': 16, 'Estado': 26, 'Fecha Última Lluvia': 16, 'Lluvia Total Acum (mm)': 13}
+                for j, c in enumerate(cols_exist):
+                    ws.set_column(j, j, anchos.get(c, 11))
+                ws.freeze_panes(3, 3)
+                ws.autofilter(2, 0, 2 + len(df_export), ncol - 1)
 
             st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
