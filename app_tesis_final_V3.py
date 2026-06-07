@@ -555,6 +555,17 @@ def generar_xml_ajustado(raw_bytes, prefix, df_final, hours_per_day):
                 setext('Duration', f"PT{horas}H0M0S")
             except: pass
     ET.register_namespace('', NS)
+    # Actualizar la FinishDate del encabezado del proyecto al máximo Fin Nuevo (cosmético;
+    # MS Project la recalcula al abrir, pero evita mostrar la fecha vieja).
+    try:
+        import pandas as _pd
+        fins = _pd.to_datetime(df_final['Fin Nuevo'], errors='coerce').dropna()
+        if len(fins):
+            fd = root.find(prefix+'FinishDate')
+            if fd is not None:
+                fd.text = _pd.Timestamp(fins.max()).strftime('%Y-%m-%dT17:00:00')
+    except Exception:
+        pass
     return ET.tostring(root, encoding='UTF-8', xml_declaration=True)
 
 def auditar_xml(file):
@@ -601,9 +612,16 @@ def auditar_xml(file):
             is_summary = (find_val(task, 'Summary') == '1')
             is_milestone = (find_val(task, 'Milestone') == '1')
             preds = []
+            pred_links = []
+            type_map = {'0':'FF','1':'FS','2':'SF','3':'SS'}
             for link in task.findall(prefix + 'PredecessorLink'):
                 p_uid = find_val(link, 'PredecessorUID')
-                if p_uid: preds.append(uid_to_id.get(p_uid, p_uid))
+                if p_uid:
+                    pid = uid_to_id.get(p_uid, p_uid)
+                    preds.append(pid)
+                    ltype = type_map.get(find_val(link, 'Type') or '1', 'FS')
+                    try: pred_links.append((int(pid), ltype))
+                    except: pass
             orig_preds = ", ".join(preds)
             errores = []
             if not is_summary and not is_milestone:
@@ -618,7 +636,7 @@ def auditar_xml(file):
                 'Start_XML': find_val(task, 'Start'), 'Finish_XML': find_val(task, 'Finish'), 
                 'Duration_Days': parse_duration_days(find_val(task, 'Duration')),
                 'IsSummary': is_summary, 'IsMilestone': is_milestone,
-                'OrigPreds': orig_preds, 'Errores': " | ".join(errores) if errores else "OK"
+                'OrigPreds': orig_preds, 'PredLinks': pred_links, 'Errores': " | ".join(errores) if errores else "OK"
             })
     # Guardar metadatos para la reescritura del XML y el uso del calendario real del proyecto
     st.session_state['xml_prefix'] = prefix
@@ -647,6 +665,19 @@ def contar_dias_habiles_shift(desde, hasta, dias_idx, feriados):
         if es_habil(c, dias_idx, feriados):
             n += 1
     return n
+
+def avanzar_habiles(fecha, n, dias_idx, feriados):
+    """Avanza 'n' días hábiles desde 'fecha' (inverso de contar_dias_habiles_shift).
+    Con n<=0 devuelve la propia fecha llevada al siguiente día hábil."""
+    d = fecha
+    if n <= 0:
+        while not es_habil(d, dias_idx, feriados): d += timedelta(days=1)
+        return d
+    c = 0
+    while c < n:
+        d += timedelta(days=1)
+        if es_habil(d, dias_idx, feriados): c += 1
+    return d
 
 # ==============================================================================
 # VENTANA CLIMATOLÓGICA: agrupa los registros históricos de ±W días alrededor de
@@ -683,6 +714,7 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     except nx.NetworkXUnfeasible: orden = df['ID'].tolist() 
         
     fecha_fin_calculada = {}
+    fecha_inicio_calculada = {}
     res_temp = {}
 
     for tid in orden:
@@ -694,23 +726,42 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
         finish_dt = pd.to_datetime(row['Finish_XML']).date() if pd.notna(row['Finish_XML']) else None
         base_dur_float = float(row['Duration_Days'])
         
-        preds_list = [int(p.strip()) for p in new_preds.split(',') if p.strip().isdigit()]
+        # ============================================================
+        # CPM TIPO-CONSCIENTE (Opción B): la propagación del retraso depende del
+        # tipo de vínculo. FS/FF/SF propagan el retraso del FIN del predecesor;
+        # SS propaga el retraso del INICIO. Como es un enfoque de delta sobre el
+        # cronograma original de MS Project, los lags y el paralelismo ya vienen
+        # incorporados en las fechas base; solo se suma el desfase climático.
+        # ============================================================
+        pred_links = row['PredLinks'] if isinstance(row.get('PredLinks'), list) else []
+        tipados = {pid for pid, _ in pred_links}
+        for p in [int(x.strip()) for x in new_preds.split(',') if x.strip().isdigit()]:
+            if p not in tipados:
+                pred_links = pred_links + [(p, 'FS')]  # predecesora auto-reparada => FS
         max_shift_dias = 0
-        if preds_list and start_dt:
-            for p in preds_list:
-                if p in fecha_fin_calculada and fecha_fin_calculada[p] is not None:
-                    fin_base_pred = G.nodes[p]['data']['Finish_XML']
-                    fin_base_pred = pd.to_datetime(fin_base_pred).date() if pd.notna(fin_base_pred) else None
-                    if fin_base_pred:
-                        # C-03 CORRECCIÓN: desplazamiento en días HÁBILES, no días calendario
-                        shift = contar_dias_habiles_shift(fin_base_pred, fecha_fin_calculada[p], dias_idx, feriados)
+        if pred_links and start_dt:
+            for p, ltype in pred_links:
+                if not G.has_node(p): continue
+                if ltype == 'SS':
+                    ini_base_pred = G.nodes[p]['data']['Start_XML']
+                    ini_base_pred = pd.to_datetime(ini_base_pred).date() if pd.notna(ini_base_pred) else None
+                    ini_new_pred = fecha_inicio_calculada.get(p)
+                    if ini_base_pred and ini_new_pred:
+                        shift = contar_dias_habiles_shift(ini_base_pred, ini_new_pred, dias_idx, feriados)
                         if shift > max_shift_dias: max_shift_dias = shift
-                            
+                else:  # FS / FF / SF -> retraso del fin del predecesor
+                    if fecha_fin_calculada.get(p) is not None:
+                        fin_base_pred = G.nodes[p]['data']['Finish_XML']
+                        fin_base_pred = pd.to_datetime(fin_base_pred).date() if pd.notna(fin_base_pred) else None
+                        if fin_base_pred:
+                            shift = contar_dias_habiles_shift(fin_base_pred, fecha_fin_calculada[p], dias_idx, feriados)
+                            if shift > max_shift_dias: max_shift_dias = shift
+
         new_start = start_dt
         if max_shift_dias > 0 and start_dt:
-            new_start = start_dt + timedelta(days=max_shift_dias)
-            while not es_habil(new_start, dias_idx, feriados): new_start += timedelta(days=1)
-                
+            new_start = avanzar_habiles(start_dt, max_shift_dias, dias_idx, feriados)
+        if new_start: fecha_inicio_calculada[tid] = new_start
+
         new_finish = finish_dt
         new_dur_float = base_dur_float
         
