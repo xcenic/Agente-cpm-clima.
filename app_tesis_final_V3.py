@@ -31,19 +31,26 @@ if 'jornada_state' not in st.session_state: st.session_state['jornada_state'] = 
 if 'nlp_state' not in st.session_state: st.session_state['nlp_state'] = True
 if 'ml_state' not in st.session_state: st.session_state['ml_state'] = True
 if 'ag_state' not in st.session_state: st.session_state['ag_state'] = True
-if 'temp_state' not in st.session_state: st.session_state['temp_state'] = 30.0
-if 'hum_state' not in st.session_state: st.session_state['hum_state'] = 85.0
-if 'pr_state' not in st.session_state: st.session_state['pr_state'] = 65
-if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 5.0
-if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 3.0
+# Preset recomendado por defecto: el de mayor exactitud validada contra la obra real (error +3 días)
+PRESET_RECOMENDADO = "11: CFX-VAL-11 Arcilla A-7-6"
+# Coordenadas neutras: centro geográfico de la República Dominicana (sin sesgar al proyecto modelo)
+LAT_NEUTRA, LON_NEUTRA = 18.7357, -70.1627
+UBIC_NEUTRA = "— Centro Geográfico RD (seleccione en el mapa) —"
+
+# Valores recomendados (CFX-VAL-11): Pr=22%, Ur=2.0 mm, Ut=4.0 h, IA activa, clima ERA5 real
+if 'temp_state' not in st.session_state: st.session_state['temp_state'] = 27.0
+if 'hum_state' not in st.session_state: st.session_state['hum_state'] = 70.0
+if 'pr_state' not in st.session_state: st.session_state['pr_state'] = 22
+if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 2.0
+if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 4.0
 if 'ventana_state' not in st.session_state: st.session_state['ventana_state'] = 7
-if 'dias_state' not in st.session_state: st.session_state['dias_state'] = ["Lun","Mar","Mié","Jue","Vie"]
 if 'clima_real_state' not in st.session_state: st.session_state['clima_real_state'] = True
-if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Ajuste manual de las variables estocásticas y logísticas del proyecto."
-if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = 18.4758
-if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = -69.7781
-if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = "Santo Domingo Este - PROPACC LAS DAMAS"
-if 'combo_ubicacion' not in st.session_state: st.session_state['combo_ubicacion'] = "Santo Domingo Este - PROPACC LAS DAMAS"
+if 'selector_preset' not in st.session_state: st.session_state['selector_preset'] = PRESET_RECOMENDADO
+if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Preset recomendado: calibración operativa de mayor exactitud validada (arcillas A-7-6, Pr 22%, Ur 2.0 mm, Ut 4.0 h)."
+if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = LAT_NEUTRA
+if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = LON_NEUTRA
+if 'ubicacion_nombre' not in st.session_state: st.session_state['ubicacion_nombre'] = UBIC_NEUTRA
+if 'combo_ubicacion' not in st.session_state: st.session_state['combo_ubicacion'] = UBIC_NEUTRA
 if 'simulacion_activa' not in st.session_state: st.session_state['simulacion_activa'] = False
 if 'resultados_finales' not in st.session_state: st.session_state['resultados_finales'] = None
 if 'audit_decision' not in st.session_state: st.session_state['audit_decision'] = None
@@ -53,6 +60,7 @@ if 'project_name' not in st.session_state: st.session_state['project_name'] = "P
 # DICCIONARIO MAESTRO DE COORDENADAS
 # ==============================================================================
 COORDENADAS_RD = {
+    "— Centro Geográfico RD (seleccione en el mapa) —": (18.7357, -70.1627),
     "Santo Domingo Este - PROPACC LAS DAMAS": (18.4758, -69.7781),
     "Azua - Azua de Compostela (Cabecera)": (18.4532, -70.7349), "Baoruco - Neiba (Cabecera)": (18.4833, -71.4167),
     "Barahona - Santa Cruz de Barahona (Cabecera)": (18.2085, -71.1008), "Dajabón - Dajabón (Cabecera)": (19.5488, -71.7083),
@@ -175,16 +183,10 @@ def aplicar_preset():
         st.session_state.temp_state = float(p['temp'])
         st.session_state.hum_state = float(p['hum'])
         st.session_state.jornada_state = p['jornada']
-        # AE-03: los presets ahora también fijan los días laborables
-        if 'dias' in p:
-            st.session_state.dias_state = p['dias']
         # Los presets son ensayos de estrés: usan override manual de temp/humedad
         st.session_state.clima_real_state = False
-        
-        st.session_state.combo_ubicacion = "Santo Domingo Oeste - Autopista Duarte"
-        st.session_state.lat_actual = 18.5743
-        st.session_state.lon_actual = -70.1063
-        st.session_state.ubicacion_nombre = "Santo Domingo Oeste - Autopista Duarte"
+        # Nota: el preset NO modifica las coordenadas; la ubicación la define el usuario
+        # mediante el mapa interactivo (clic) o la lista, partiendo de un centro neutro.
 
 # ==============================================================================
 # MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING (CORREGIDO)
@@ -1077,11 +1079,10 @@ with st.sidebar:
     st.header("⚙️ Configuración Logística")
     st.subheader("1. Horario de Obra")
     h_inicio, h_fin = st.slider("Jornada", 0, 23, key='jornada_state')
-    
-    st.subheader("2. Días Laborables")
-    dias_sel = st.multiselect("Seleccionar:", ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"], key='dias_state')
-    mapa_d = {"Lun":0,"Mar":1,"Mié":2,"Jue":3,"Vie":4,"Sáb":5,"Dom":6}
-    dias_idx = [mapa_d[d] for d in dias_sel]
+
+    # Los días laborables se toman del calendario real del proyecto (XML MSPDI).
+    # Fallback Lun-Sáb (6 días) solo si no se carga calendario del proyecto.
+    dias_idx = [0, 1, 2, 3, 4, 5]
     
     st.markdown("---")
     st.header("🧠 Capa Cognitiva e Inteligencia Artificial")
@@ -1159,10 +1160,22 @@ with col_loc_2:
             st.session_state['ubicacion_nombre'] = f"Coordenada Manual: {man_lat:.6f}, {man_lon:.6f}"
             st.rerun()
 
-m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_actual']], zoom_start=12)
-m.add_child(folium.LatLngPopup()) 
+zoom_ini = 8 if st.session_state['ubicacion_nombre'] == UBIC_NEUTRA else 13
+m = folium.Map(location=[st.session_state['lat_actual'], st.session_state['lon_actual']], zoom_start=zoom_ini)
+m.add_child(folium.LatLngPopup())
 folium.Marker([st.session_state['lat_actual'], st.session_state['lon_actual']], popup=st.session_state['ubicacion_nombre'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
-map_data = st_folium(m, height=450, use_container_width=True, key="mapa_folium")
+# Ventana más cuadrada (mayor altura) para facilitar la selección del punto
+map_data = st_folium(m, height=620, use_container_width=True, key="mapa_folium")
+
+# Selección por pin (clic) en el mapa: fija las coordenadas y dispara la consulta al API de clima
+if map_data and map_data.get('last_clicked'):
+    clic = map_data['last_clicked']
+    nlat = round(float(clic['lat']), 6); nlon = round(float(clic['lng']), 6)
+    if abs(nlat - st.session_state['lat_actual']) > 1e-6 or abs(nlon - st.session_state['lon_actual']) > 1e-6:
+        st.session_state['lat_actual'] = nlat
+        st.session_state['lon_actual'] = nlon
+        st.session_state['ubicacion_nombre'] = f"Punto seleccionado: {nlat:.4f}, {nlon:.4f}"
+        st.rerun()
 
 st.markdown("---")
 
