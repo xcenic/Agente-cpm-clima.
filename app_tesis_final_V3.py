@@ -8,7 +8,7 @@ import re
 import math
 import os
 import numpy as np
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time as dtime
 
 # LIBRERÍAS PREMIUM Y UI
 import plotly.express as px
@@ -472,9 +472,96 @@ def obtener_clima_horario_laboral(lat, lon, hora_inicio, hora_fin):
 
 def redondear_duracion(val): return round(float(val), 2)
 
+def extraer_calendario_xml(root, prefix):
+    """Lee el calendario base del proyecto MSPDI: días laborables (weekday Python) y feriados."""
+    map_daytype = {1:6, 2:0, 3:1, 4:2, 5:3, 6:4, 7:5}  # DayType MSPDI (1=Dom..7=Sab) -> weekday() Py
+    cal_uid_node = root.find(prefix+"CalendarUID")
+    cal_default = cal_uid_node.text if cal_uid_node is not None else None
+    dias_idx = set(); feriados = {}
+    cals = root.find(prefix+"Calendars")
+    if cals is None: return [0,1,2,3,4], {}, None
+    elegido = None
+    for cal in cals.findall(prefix+"Calendar"):
+        uid = cal.findtext(prefix+"UID")
+        if cal_default and uid == cal_default: elegido = cal; break
+        if elegido is None and cal.findtext(prefix+"IsBaseCalendar") == "1": elegido = cal
+    if elegido is None: elegido = cals.find(prefix+"Calendar")
+    if elegido is None: return [0,1,2,3,4], {}, None
+    wds = elegido.find(prefix+"WeekDays")
+    if wds is not None:
+        for wd in wds.findall(prefix+"WeekDay"):
+            dt_node = wd.findtext(prefix+"DayType"); working = wd.findtext(prefix+"DayWorking")
+            if dt_node:
+                if working == "1":
+                    py = map_daytype.get(int(dt_node))
+                    if py is not None: dias_idx.add(py)
+            else:  # excepción embebida (forma antigua)
+                tp = wd.find(prefix+"TimePeriod")
+                if tp is not None and working == "0":
+                    fd = tp.findtext(prefix+"FromDate"); td = tp.findtext(prefix+"ToDate")
+                    if fd:
+                        d0 = datetime.fromisoformat(fd).date(); d1 = datetime.fromisoformat(td).date() if td else d0
+                        cur=d0
+                        while cur<=d1: feriados[cur.strftime('%Y-%m-%d')]=True; cur+=timedelta(days=1)
+    exc = elegido.find(prefix+"Exceptions")
+    if exc is not None:  # excepciones forma nueva
+        for e in exc.findall(prefix+"Exception"):
+            if e.findtext(prefix+"DayWorking") == "0":
+                tp = e.find(prefix+"TimePeriod")
+                if tp is not None:
+                    fd=tp.findtext(prefix+"FromDate"); td=tp.findtext(prefix+"ToDate")
+                    if fd:
+                        d0=datetime.fromisoformat(fd).date(); d1=datetime.fromisoformat(td).date() if td else d0
+                        cur=d0
+                        while cur<=d1: feriados[cur.strftime('%Y-%m-%d')]=True; cur+=timedelta(days=1)
+    if not dias_idx: dias_idx={0,1,2,3,4}
+    return sorted(dias_idx), feriados, cal_default
+
+def generar_xml_ajustado(raw_bytes, prefix, df_final, hours_per_day):
+    """Reescribe Duración/Inicio/Fin de cada tarea en el XML MSPDI original según el resultado
+    de CHRONOFLUX, preservando calendarios, dependencias y todo lo demás. Solo se modifican las
+    tareas hoja en su duración; resúmenes e hitos solo reciben fechas (Project recalcula su duración)."""
+    NS = "http://schemas.microsoft.com/project"
+    root = ET.fromstring(raw_bytes)
+    by_id = {int(r['ID']): r for _, r in df_final.iterrows()}
+    for task in root.iter(prefix+'Task'):
+        idtxt = task.findtext(prefix+'ID')
+        if idtxt is None: continue
+        try: tid = int(idtxt)
+        except: continue
+        if tid not in by_id: continue
+        r = by_id[tid]
+        is_sum = (task.findtext(prefix+'Summary') == '1')
+        is_mile = (task.findtext(prefix+'Milestone') == '1')
+        def setext(tag, val):
+            el = task.find(prefix+tag)
+            if el is None: el = ET.SubElement(task, prefix+tag)
+            el.text = val
+        ini = r.get('Inicio Nuevo'); fin = r.get('Fin Nuevo')
+        try:
+            if ini is not None and not isinstance(ini, float):
+                d = ini if hasattr(ini,'year') else datetime.fromisoformat(str(ini)).date()
+                setext('Start', datetime.combine(d, dtime(8,0)).strftime('%Y-%m-%dT%H:%M:%S'))
+        except: pass
+        try:
+            if fin is not None and not isinstance(fin, float):
+                d = fin if hasattr(fin,'year') else datetime.fromisoformat(str(fin)).date()
+                setext('Finish', datetime.combine(d, dtime(17,0)).strftime('%Y-%m-%dT%H:%M:%S'))
+        except: pass
+        if not is_sum and not is_mile:
+            try:
+                dnv = float(r.get('Duración Nueva'))
+                horas = int(round(dnv*hours_per_day))
+                setext('Duration', f"PT{horas}H0M0S")
+            except: pass
+    ET.register_namespace('', NS)
+    return ET.tostring(root, encoding='UTF-8', xml_declaration=True)
+
 def auditar_xml(file):
-    tree = ET.parse(file)
-    root = tree.getroot()
+    file.seek(0)
+    raw = file.read()
+    st.session_state['xml_raw'] = raw
+    root = ET.fromstring(raw)
     prefix = root.tag.split("}")[0] + "}" if "}" in root.tag else ""
     title = root.find(prefix + "Title")
     st.session_state['project_name'] = title.text if (title is not None and title.text) else "Proyecto_Exportado"
@@ -533,6 +620,15 @@ def auditar_xml(file):
                 'IsSummary': is_summary, 'IsMilestone': is_milestone,
                 'OrigPreds': orig_preds, 'Errores': " | ".join(errores) if errores else "OK"
             })
+    # Guardar metadatos para la reescritura del XML y el uso del calendario real del proyecto
+    st.session_state['xml_prefix'] = prefix
+    st.session_state['xml_hpd'] = hours_per_day
+    try:
+        cd, cf, _ = extraer_calendario_xml(root, prefix)
+        st.session_state['cal_dias'] = cd
+        st.session_state['cal_feriados'] = cf
+    except Exception:
+        st.session_state['cal_dias'] = None; st.session_state['cal_feriados'] = {}
     return pd.DataFrame(tareas).sort_values('ID')
 
 # ==============================================================================
@@ -1082,6 +1178,21 @@ if uploaded:
 
     if st.session_state['audit_decision']:
         st.markdown("### 🚀 Simulación de Ruta Crítica Estocástica")
+
+        # --- Calendario del proyecto (leído del XML) ---
+        cal_dias_xml = st.session_state.get('cal_dias')
+        usar_cal_xml = False
+        if cal_dias_xml:
+            nombres = {0:"Lun",1:"Mar",2:"Mié",3:"Jue",4:"Vie",5:"Sáb",6:"Dom"}
+            dias_txt = ", ".join(nombres[d] for d in cal_dias_xml)
+            n_fer = len(st.session_state.get('cal_feriados', {}))
+            usar_cal_xml = st.toggle(
+                "📅 Usar el calendario del proyecto (XML)", value=True, key='usar_cal_xml_state',
+                help="Activado: el motor cuenta los días hábiles con el calendario embebido en tu XML de MS Project "
+                     "(mismos días laborables y feriados). Así las fechas del XML ajustado coinciden con las de Project. "
+                     "Desactivado: usa los días laborables seleccionados manualmente en la barra lateral.")
+            if usar_cal_xml:
+                st.info(f"Calendario del proyecto detectado → días laborables: **{dias_txt}**  ·  feriados/excepciones: **{n_fer}**")
         
         c_p, c_m, c_u = st.columns(3)
         prob = c_p.slider("Probabilidad de Lluvia (%) — Pr", 0, 100, key='pr_state',
@@ -1100,7 +1211,12 @@ if uploaded:
         
         if st.button("Ejecutar Cálculo Topológico e Inferencia IA", type="primary", use_container_width=True):
             with st.spinner("Procesando motor estocástico y modelos cognitivos termodinámicos..."):
-                final = simular_cronograma(df_aud, clima, prob, mm, dias_idx, feriados_dict, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global, usar_clima_real, ventana_dias)
+                # Override del calendario con el del proyecto (XML) para que las fechas coincidan en Project
+                dias_calc = dias_idx; feriados_calc = feriados_dict
+                if usar_cal_xml and cal_dias_xml:
+                    dias_calc = cal_dias_xml
+                    feriados_calc = {**feriados_dict, **st.session_state.get('cal_feriados', {})}
+                final = simular_cronograma(df_aud, clima, prob, mm, dias_calc, feriados_calc, st.session_state['audit_decision'], umbral_horas, h_inicio, h_fin, activar_nlp, activar_ml, temp_global, hum_global, usar_clima_real, ventana_dias)
                 st.session_state['resultados_finales'] = final
                 st.session_state['simulacion_activa'] = True
                 
@@ -1318,4 +1434,26 @@ if uploaded:
                 for j, wd in enumerate([8, 12, 40, 16, 18, 12, 18]): ws2.set_column(j, j, wd)
                 ws2.freeze_panes(3, 3)
 
-            st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
+            col_xml, col_xls = st.columns(2)
+
+            # --- XML ajustado para reabrir en MS Project ---
+            xml_ok = False
+            if st.session_state.get('xml_raw') is not None:
+                try:
+                    xml_bytes = generar_xml_ajustado(
+                        st.session_state['xml_raw'], st.session_state.get('xml_prefix', ''),
+                        final, st.session_state.get('xml_hpd', 8.0))
+                    col_xml.download_button(
+                        "📐 Descargar XML ajustado (abrir en MS Project)", xml_bytes,
+                        f"{safe_name}_AJUSTADO.xml", "application/xml",
+                        type="primary", use_container_width=True,
+                        help="XML con las duraciones nuevas ya inyectadas y el calendario original del proyecto. "
+                             "Ábrelo en MS Project (Archivo → Abrir → .xml) y las fechas coincidirán con CHRONOFLUX.")
+                    xml_ok = True
+                except Exception as e:
+                    col_xml.warning(f"No se pudo generar el XML ajustado: {e}")
+            if not xml_ok:
+                col_xml.info("Carga un XML de MS Project para habilitar la exportación ajustada.")
+
+            # --- Excel de auditoría (se conserva) ---
+            col_xls.download_button("📥 Reporte Gerencial (Excel · auditoría)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", use_container_width=True)
