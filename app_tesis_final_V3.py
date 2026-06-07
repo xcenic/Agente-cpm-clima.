@@ -181,10 +181,10 @@ def aplicar_preset():
         # Los presets son ensayos de estrés: usan override manual de temp/humedad
         st.session_state.clima_real_state = False
         
-        st.session_state.combo_ubicacion = "Santo Domingo OESTE - AUTOPISTA DUARTE"
-        st.session_state.lat_actual = 18.574300
-        st.session_state.lon_actual = -70.106300
-        st.session_state.ubicacion_nombre = "Santo Domingo OESTE - AUTOPISTA DUARTE"
+        st.session_state.combo_ubicacion = "Santo Domingo Este - PROPACC LAS DAMAS"
+        st.session_state.lat_actual = 18.4758
+        st.session_state.lon_actual = -69.7781
+        st.session_state.ubicacion_nombre = "Santo Domingo Este - PROPACC LAS DAMAS"
 
 # ==============================================================================
 # MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING (CORREGIDO)
@@ -845,6 +845,9 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
     df_res = pd.DataFrame(list(res_temp.values())).sort_values('ID')
     df_res['Holgura (Días)'] = df_res['Holgura (Días)'].astype(object)
     df_res['Tr (Secado/Horas)'] = df_res['Tr (Secado/Horas)'].astype(object)
+    df_res['Duración Nueva'] = df_res['Duración Nueva'].astype(object)
+    df_res['Días Impacto'] = df_res['Días Impacto'].astype(object)
+    df_res['Nivel Riesgo'] = df_res['Nivel Riesgo'].astype(object)
 
     for i in df_res[df_res['IsSummary'] == True].index:
         wbs_val = str(df_res.at[i, 'WBS']); wbs_prefix = wbs_val + '.'
@@ -863,12 +866,15 @@ def simular_cronograma(df, clima, prob_min, mm_min, dias_idx, feriados, reparar,
                 while cursor <= max_finish:
                     if es_habil(cursor, dias_idx, feriados): c_dias += 1
                     cursor += timedelta(days=1)
-                
-                df_res.at[i, 'Duración Nueva'] = c_dias
-                impacto_resumen = c_dias - df_res.at[i, 'Duración Base']
-                df_res.at[i, 'Días Impacto'] = impacto_resumen
-                df_res.at[i, 'Nivel Riesgo'] = "Alto" if impacto_resumen > 0 else "Normal"
-            else: df_res.at[i, 'Días Impacto'] = 0; df_res.at[i, 'Nivel Riesgo'] = "N/A"
+                # Las tareas RESUMEN no llevan duración pegable: MS Project la deriva
+                # automáticamente de sus hijas. Se conservan Inicio/Fin Nuevo (roll-up
+                # correcto) solo como referencia, pero la Duración Nueva y los Días Impacto
+                # se dejan en blanco para evitar desfases al copiar/pegar.
+                df_res.at[i, 'Duración Nueva'] = "-"
+                df_res.at[i, 'Días Impacto'] = "-"
+                df_res.at[i, 'Nivel Riesgo'] = "Resumen (auto)"
+            else:
+                df_res.at[i, 'Duración Nueva'] = "-"; df_res.at[i, 'Días Impacto'] = "-"; df_res.at[i, 'Nivel Riesgo'] = "Resumen (auto)"
                 
             df_res.at[i, 'Prob. Lluvia'] = "-"; df_res.at[i, 'mm Lluvia Max'] = "-"
             df_res.at[i, 'Holgura (Días)'] = "-"; df_res.at[i, 'Ruta Crítica'] = "-"; df_res.at[i, 'Tr (Secado/Horas)'] = "-"
@@ -1193,10 +1199,11 @@ if uploaded:
             columnas_exportar = ['ID', 'WBS', 'Actividad', 'Duración Base', 'Inicio Base', 'Fin Base', 'Duración Nueva', 'Inicio Nuevo', 'Fin Nuevo', 'Tr (Secado/Horas)', 'Pred. Orig', 'Pred. Nueva', 'Prob. Lluvia', 'mm Lluvia Max', 'Lluvia Total Acum (mm)', 'Fecha Última Lluvia', 'Días Impacto', 'Nivel Riesgo', 'Estado', 'Holgura (Días)', 'Ruta Crítica']
             cols_exist = [c for c in columnas_exportar if c in final.columns]
             df_export = final[cols_exist].copy()
-            # Orden: primero las más afectadas (mayor Días Impacto arriba)
-            if 'Días Impacto' in df_export.columns:
-                df_export['_orden'] = pd.to_numeric(df_export['Días Impacto'], errors='coerce').fillna(0)
-                df_export = df_export.sort_values('_orden', ascending=False).drop(columns=['_orden'])
+            # ORDEN POR ID (orden original de MS Project) para que la columna de
+            # 'Duración Nueva' se pueda copiar y pegar alineada fila a fila con el Project.
+            if 'ID' in df_export.columns:
+                df_export['_idnum'] = pd.to_numeric(df_export['ID'], errors='coerce')
+                df_export = df_export.sort_values('_idnum').drop(columns=['_idnum'])
 
             with pd.ExcelWriter(b_out, engine='xlsxwriter') as w:
                 df_export.to_excel(w, index=False, sheet_name="Reporte", startrow=2)
@@ -1215,13 +1222,15 @@ if uploaded:
                 rojo_f   = wb.add_format({'bg_color': '#F8B4B4', 'font_color': '#7F1D1D', 'num_format': 14, 'align': 'center'})
                 naranja_f= wb.add_format({'bg_color': '#FDE2B4', 'font_color': '#7C2D12', 'num_format': 14, 'align': 'center'})
                 verde_f  = wb.add_format({'bg_color': '#BBF7D0', 'font_color': '#14532D', 'num_format': 14, 'align': 'center'})
-                fmt_fecha_de = {id(rojo): rojo_f, id(naranja): naranja_f, id(verde): verde_f}
+                gris     = wb.add_format({'bg_color': '#E5E7EB', 'font_color': '#374151', 'italic': True})
+                gris_f   = wb.add_format({'bg_color': '#E5E7EB', 'font_color': '#374151', 'italic': True, 'num_format': 14, 'align': 'center'})
+                fmt_fecha_de = {id(rojo): rojo_f, id(naranja): naranja_f, id(verde): verde_f, id(gris): gris_f}
                 cols_fecha = {'Inicio Base', 'Fin Base', 'Inicio Nuevo', 'Fin Nuevo', 'Fecha Última Lluvia'}
                 fmt_celda = wb.add_format({'border': 1})
 
                 # Título y subtítulo
                 ws.merge_range(0, 0, 0, ncol-1, f"REPORTE CLIMÁTICO: {safe_name} | {st.session_state['ubicacion_nombre']}", fmt_title)
-                ws.merge_range(1, 0, 1, ncol-1, "Semáforo de Afectación  \u25CF Rojo = Ruta Crítica / Crítico   \u25CF Naranja = Alto impacto   \u25CF Verde = Normal / sin impacto", fmt_sub)
+                ws.merge_range(1, 0, 1, ncol-1, "Orden por ID (igual que MS Project).  Semáforo: \u25CF Rojo = Ruta Crítica/Crítico  \u25CF Naranja = Alto  \u25CF Verde = Normal.  Resúmenes: duración la calcula MS Project.", fmt_sub)
 
                 # Encabezados (fila 2)
                 for j, c in enumerate(cols_exist):
@@ -1239,13 +1248,15 @@ if uploaded:
                     rc = str(fila['Ruta Crítica']) if idx_rc is not None else ""
                     try: imp = float(fila['Días Impacto']) if idx_imp is not None else 0.0
                     except: imp = 0.0
-                    if "Crítico" in riesgo or rc == "Sí":
+                    if "Resumen" in riesgo:
+                        fmt_fila = gris
+                    elif "Crítico" in riesgo or rc == "Sí":
                         fmt_fila = rojo
                     elif riesgo == "Alto" or imp > 2:
                         fmt_fila = naranja
                     else:
                         fmt_fila = verde
-                    fmt_fila_fecha = fmt_fecha_de[id(fmt_fila)]
+                    fmt_fila_fecha = fmt_fecha_de.get(id(fmt_fila), fmt_fila)
                     for j, c in enumerate(cols_exist):
                         val = fila[c]
                         if c in cols_fecha:
@@ -1265,5 +1276,46 @@ if uploaded:
                     ws.set_column(j, j, anchos.get(c, 11))
                 ws.freeze_panes(3, 3)
                 ws.autofilter(2, 0, 2 + len(df_export), ncol - 1)
+
+                # ============================================================
+                # HOJA 2: "Pegar en MS Project" — orden por ID, columna de
+                # Duración Nueva lista para copiar/pegar. Resúmenes e hitos en
+                # blanco (MS Project los recalcula). Las fechas de fin coinciden
+                # con las de CHRONOFLUX al recalcular el Project con estas duraciones.
+                # ============================================================
+                ws2 = wb.add_worksheet("Pegar en MS Project")
+                hdr2 = ['ID', 'WBS', 'Actividad', 'Duración Base (días)', 'Duración Nueva (días)', 'Días Impacto', 'Fin Nuevo (CHRONOFLUX)']
+                t2 = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter', 'bg_color': '#1E293B', 'font_color': 'white', 'font_size': 12, 'border': 1})
+                s2 = wb.add_format({'italic': True, 'bg_color': '#334155', 'font_color': '#E2E8F0', 'font_size': 9})
+                h2 = wb.add_format({'bold': True, 'align': 'center', 'bg_color': '#0F172A', 'font_color': 'white', 'border': 1, 'text_wrap': True})
+                num2 = wb.add_format({'align': 'center', 'border': 1})
+                dnew2 = wb.add_format({'align': 'center', 'border': 1, 'bold': True, 'bg_color': '#FEF9C3'})  # columna a copiar (resaltada)
+                fecha2 = wb.add_format({'align': 'center', 'border': 1, 'num_format': 14})
+                txt2 = wb.add_format({'border': 1})
+                ws2.merge_range(0, 0, 0, len(hdr2)-1, "PEGAR EN MS PROJECT — Copia la columna amarilla 'Duración Nueva' sobre la columna Duración del Project (tareas hoja).", t2)
+                ws2.merge_range(1, 0, 1, len(hdr2)-1, "Resúmenes e hitos van vacíos a propósito: MS Project recalcula su duración y fechas a partir de las hijas. Requiere que el calendario laboral del Project coincida con el configurado en CHRONOFLUX.", s2)
+                for j, h in enumerate(hdr2): ws2.write(2, j, h, h2)
+                for r in range(len(df_export)):
+                    fila = df_export.iloc[r]
+                    es_res = ("Resumen" in str(fila.get('Nivel Riesgo','')))
+                    dn = fila.get('Duración Nueva')
+                    ws2.write(3+r, 0, fila.get('ID'), num2)
+                    ws2.write(3+r, 1, str(fila.get('WBS','')), num2)
+                    ws2.write(3+r, 2, str(fila.get('Actividad','')), txt2)
+                    db = pd.to_numeric(fila.get('Duración Base'), errors='coerce')
+                    ws2.write(3+r, 3, int(db) if pd.notna(db) else "-", num2)
+                    dnv = pd.to_numeric(dn, errors='coerce')
+                    if es_res or pd.isna(dnv):
+                        ws2.write(3+r, 4, "", dnew2)        # vacío: MS Project lo deriva
+                        ws2.write(3+r, 5, "-", num2)
+                    else:
+                        ws2.write_number(3+r, 4, int(round(dnv)), dnew2)
+                        imp = pd.to_numeric(fila.get('Días Impacto'), errors='coerce')
+                        ws2.write(3+r, 5, int(imp) if pd.notna(imp) else 0, num2)
+                    fn = pd.to_datetime(fila.get('Fin Nuevo'), errors='coerce')
+                    if pd.notna(fn): ws2.write_datetime(3+r, 6, fn.to_pydatetime(), fecha2)
+                    else: ws2.write(3+r, 6, "-", num2)
+                for j, wd in enumerate([8, 12, 40, 16, 18, 12, 18]): ws2.set_column(j, j, wd)
+                ws2.freeze_panes(3, 3)
 
             st.download_button("📥 Descargar Reporte Gerencial Completo (Excel)", b_out.getvalue(), f"Reporte_Climatico_{safe_name}.xlsx", "application/vnd.ms-excel", type="primary", use_container_width=True)
