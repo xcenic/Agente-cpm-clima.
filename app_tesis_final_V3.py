@@ -73,7 +73,11 @@ if 'ur_state' not in st.session_state: st.session_state['ur_state'] = 2.0
 if 'ut_state' not in st.session_state: st.session_state['ut_state'] = 4.0
 if 'ventana_state' not in st.session_state: st.session_state['ventana_state'] = 7
 if 'clima_real_state' not in st.session_state: st.session_state['clima_real_state'] = True
-if 'selector_preset' not in st.session_state: st.session_state['selector_preset'] = PRESET_RECOMENDADO
+if 'selector_preset' not in st.session_state:
+    st.session_state['selector_preset'] = PRESET_RECOMENDADO
+    # [AUD-10] En el primer arranque, sembrar los valores del preset recomendado
+    # (se aplican en sembrar_preset_pendiente, antes de instanciar los widgets).
+    st.session_state['pending_preset'] = PRESET_RECOMENDADO
 if 'desc_actual' not in st.session_state: st.session_state['desc_actual'] = "Preset recomendado: calibración operativa de mayor exactitud validada (arcillas A-7-6, Pr 22%, Ur 2.0 mm, Ut 4.0 h)."
 if 'lat_actual' not in st.session_state: st.session_state['lat_actual'] = LAT_NEUTRA
 if 'lon_actual' not in st.session_state: st.session_state['lon_actual'] = LON_NEUTRA
@@ -198,27 +202,50 @@ PRESETS_MODELOS = {
 }
 
 def aplicar_preset():
+    # [AUD-10] CORRECCIÓN DEL BUG DE PRESETS.
+    # Problema previo: este callback escribía directamente en las keys de los widgets
+    # (pr_state, ur_state, …). En Streamlit, cuando un st.slider/st.toggle usa esa misma
+    # key, la API prohíbe (o descarta silenciosamente) la asignación por código si el
+    # widget vive en un bloque condicional que aún no se ha instanciado en ese run. El
+    # resultado era que los deslizadores caían a su valor mínimo (Pr→0, Ur→0.0, Ut→1.0):
+    # "todas las configuraciones se mantienen en 0".
+    #
+    # Solución: el callback NO toca las keys de los widgets. Solo deja constancia del
+    # preset elegido en 'pending_preset'. La aplicación real de los valores se hace al
+    # principio del render (sembrar_preset_pendiente), ANTES de instanciar los widgets,
+    # que es el único momento en que Streamlit permite fijar su valor inicial sin conflicto.
     seleccion = st.session_state.selector_preset
     st.session_state['desc_actual'] = PRESETS_MODELOS[seleccion]['desc']
-    
     if seleccion != "Personalizado (Ajuste Manual)":
-        p = PRESETS_MODELOS[seleccion]
-        st.session_state.nlp_state = p['nlp']
-        st.session_state.ml_state = p['ml']
-        st.session_state.pr_state = p['pr']
-        st.session_state.ur_state = float(p['ur'])
-        st.session_state.ut_state = float(p['ut'])
-        st.session_state.temp_state = float(p['temp'])
-        st.session_state.hum_state = float(p['hum'])
-        st.session_state.jornada_state = p['jornada']
-        # [AUD-09] El preset también fija sus días laborables (p. ej. L-D en el
-        # ensayo de Fast-Tracking CFX-LOG-09). Solo rige si el usuario desactiva
-        # el calendario del XML del proyecto.
-        if 'dias' in p: st.session_state.dias_state = list(p['dias'])
-        # Los presets son ensayos de estrés: usan override manual de temp/humedad
-        st.session_state.clima_real_state = False
-        # Nota: el preset NO modifica las coordenadas; la ubicación la define el usuario
-        # mediante el mapa interactivo (clic) o la lista, partiendo de un centro neutro.
+        st.session_state['pending_preset'] = seleccion
+
+
+def sembrar_preset_pendiente():
+    # [AUD-10] Se ejecuta una vez por run, al inicio, antes de crear cualquier widget.
+    # Vuelca los valores del preset pendiente en las keys de estado. Como aquí los
+    # widgets todavía no existen en este run, Streamlit acepta el valor como inicial.
+    seleccion = st.session_state.pop('pending_preset', None)
+    if not seleccion or seleccion not in PRESETS_MODELOS:
+        return
+    p = PRESETS_MODELOS[seleccion]
+    if 'nlp' not in p:  # "Personalizado": no tiene parámetros que sembrar
+        return
+    st.session_state['nlp_state']   = bool(p['nlp'])
+    st.session_state['ml_state']    = bool(p['ml'])
+    st.session_state['pr_state']    = int(p['pr'])
+    st.session_state['ur_state']    = float(p['ur'])
+    st.session_state['ut_state']    = float(p['ut'])
+    st.session_state['temp_state']  = float(p['temp'])
+    st.session_state['hum_state']   = float(p['hum'])
+    st.session_state['jornada_state'] = tuple(p['jornada'])
+    # [AUD-09] El preset también fija sus días laborables (p. ej. L-D en el ensayo de
+    # Fast-Tracking CFX-LOG-09). Solo rige si el usuario desactiva el calendario del XML.
+    if 'dias' in p:
+        st.session_state['dias_state'] = list(p['dias'])
+    # Los presets son ensayos de estrés: usan override manual de temp/humedad.
+    st.session_state['clima_real_state'] = False
+    # Nota: el preset NO modifica las coordenadas; la ubicación la define el usuario
+    # mediante el mapa interactivo (clic) o la lista, partiendo de un centro neutro.
 
 # ==============================================================================
 # MÓDULOS DE INTELIGENCIA ARTIFICIAL Y MACHINE LEARNING (CORREGIDO)
@@ -1139,6 +1166,8 @@ st.markdown("""
 # INTERFAZ PRINCIPAL Y BARRA LATERAL
 # ==============================================================================
 with st.sidebar:
+    # [AUD-10] Aplicar el preset pendiente ANTES de crear ningún widget de esta sesión.
+    sembrar_preset_pendiente()
     st.header("🗂️ Casos de Ensayo (Presets)")
     st.selectbox("Seleccionar Modelo de Validación:", list(PRESETS_MODELOS.keys()), key="selector_preset", on_change=aplicar_preset)
     st.info(f"ℹ️ **Info:** {st.session_state['desc_actual']}")
@@ -1171,9 +1200,9 @@ with st.sidebar:
               "Desactivado: se usan los valores manuales de abajo como escenario de estrés "
               "(modo usado por los presets de validación).")
     )
-    temp_global = st.slider("Temperatura Ambiente (°C) — escenario manual", 15.0, 45.0, step=0.5, key='temp_state',
+    temp_global = st.slider("Temperatura Ambiente (°C) — escenario manual", 15.0, 45.0, step=0.1, key='temp_state',
                             disabled=usar_clima_real)
-    hum_global = st.slider("Humedad Relativa (%) — escenario manual", 30.0, 100.0, step=1.0, key='hum_state',
+    hum_global = st.slider("Humedad Relativa (%) — escenario manual", 30.0, 100.0, step=0.1, key='hum_state',
                            disabled=usar_clima_real)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -1333,7 +1362,7 @@ if uploaded:
         c_p, c_m, c_u = st.columns(3)
         prob = c_p.slider("Probabilidad de Lluvia (%) — Pr", 0, 100, key='pr_state',
                           help="Frecuencia histórica P(d)=n/N: %% de años en que llovió en esa fecha (ventana). Solo se evalúan días donde llueve al menos este %% de los años.") / 100.0
-        mm = c_m.slider("Intensidad mínima (mm/día) — Ur", 0.0, 50.0, step=0.5, key='ur_state',
+        mm = c_m.slider("Intensidad mínima (mm/día) — Ur", 0.0, 50.0, step=0.1, key='ur_state',
                         help="La lluvia típica del día debe superar estos mm para detener faenas. Lloviznas por debajo de Ur no generan impacto. Es un filtro SEPARADO de la probabilidad.")
         umbral_horas = c_u.slider(
             "Horas mínimas de jornada viable — Hw_min",
