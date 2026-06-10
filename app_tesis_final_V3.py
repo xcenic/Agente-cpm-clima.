@@ -603,45 +603,107 @@ def extraer_calendario_xml(root, prefix):
     return sorted(dias_idx), feriados, cal_default
 
 def generar_xml_ajustado(raw_bytes, prefix, df_final, hours_per_day):
-    """Reescribe Duración/Inicio/Fin de cada tarea en el XML MSPDI original según el resultado
-    de CHRONOFLUX, preservando calendarios, dependencias y todo lo demás. Solo se modifican las
-    tareas hoja en su duración; resúmenes e hitos solo reciben fechas (Project recalcula su duración)."""
+    """Reescribe cada tarea del XML MSPDI con las fechas de CHRONOFLUX, preservando
+    calendarios, dependencias y todo lo demás.
+
+    [AUD-11] CORRECCIÓN DEL DESFASE DE FECHAS EN MS PROJECT.
+    Problema previo: las tareas se dejaban en modo automático (<Manual>0</Manual>) y solo
+    se reescribían Start/Finish/Duration. Al abrir el MPP, Project IGNORA esas fechas y
+    recalcula todo en cascada FS estricta sobre el calendario del proyecto, perdiendo los
+    solapamientos/lags originales (desfases observados de hasta ~58 días por tarea).
+    Además quedaban descoordinados ManualStart/ManualFinish/Early*/Late* con los valores viejos.
+
+    Solución (modo Manual): cada tarea hoja se marca como programada manualmente
+    (<Manual>1</Manual>) y se fijan de forma coherente Start, Finish, Duration, ManualStart,
+    ManualFinish, ManualDuration y los espejos Early/Late. En modo manual Project respeta las
+    fechas tal cual, sin recálculo, de modo que el cronograma coincide al día con el dashboard
+    y con el reporte climático. Los resúmenes se dejan en automático (Project los deriva de sus
+    hijos) y los hitos conservan su naturaleza de duración cero.
+    """
     NS = "http://schemas.microsoft.com/project"
     root = ET.fromstring(raw_bytes)
     by_id = {int(r['ID']): r for _, r in df_final.iterrows()}
+
+    def fmt(d, hh, mm=0):
+        return datetime.combine(d, dtime(hh, mm)).strftime('%Y-%m-%dT%H:%M:%S')
+
+    def as_date(v):
+        if v is None or isinstance(v, float):
+            return None
+        return v if hasattr(v, 'year') else datetime.fromisoformat(str(v)).date()
+
     for task in root.iter(prefix+'Task'):
         idtxt = task.findtext(prefix+'ID')
-        if idtxt is None: continue
-        try: tid = int(idtxt)
-        except: continue
-        if tid not in by_id: continue
+        if idtxt is None:
+            continue
+        try:
+            tid = int(idtxt)
+        except (TypeError, ValueError):
+            continue
+        if tid not in by_id:
+            continue
         r = by_id[tid]
         is_sum = (task.findtext(prefix+'Summary') == '1')
         is_mile = (task.findtext(prefix+'Milestone') == '1')
+
         def setext(tag, val):
             el = task.find(prefix+tag)
-            if el is None: el = ET.SubElement(task, prefix+tag)
+            if el is None:
+                el = ET.SubElement(task, prefix+tag)
             el.text = val
-        ini = r.get('Inicio Nuevo'); fin = r.get('Fin Nuevo')
+
+        d_ini = as_date(r.get('Inicio Nuevo'))
+        d_fin = as_date(r.get('Fin Nuevo'))
+
+        # Los resúmenes los recalcula Project a partir de sus hijos; no se tocan sus fechas
+        # ni su modo (evita inconsistencias padre/hijo). Solo hojas e hitos se fijan.
+        if is_sum:
+            continue
+
+        # [AUD-11] Forzar modo de programación manual para que Project NO recalcule.
+        setext('Manual', '1')
+
+        start_iso = fmt(d_ini, 8, 0) if d_ini else None
+        # La jornada del proyecto termina a las 17:00 (DefaultFinishTime); se respeta.
+        finish_iso = fmt(d_fin, 17, 0) if d_fin else None
+
+        if is_mile:
+            # Hito: duración cero; inicio = fin. Se usa la fecha de fin (o inicio) calculada.
+            ref = finish_iso or start_iso
+            if ref:
+                # un hito marca un instante; MS Project lo muestra a las 17:00 del día
+                setext('Start', ref); setext('Finish', ref)
+                setext('ManualStart', ref); setext('ManualFinish', ref)
+                setext('EarlyStart', ref); setext('EarlyFinish', ref)
+                setext('LateStart', ref); setext('LateFinish', ref)
+                setext('Duration', 'PT0H0M0S')
+                setext('ManualDuration', 'PT0H0M0S')
+            continue
+
+        # Tarea hoja normal
+        if start_iso:
+            setext('Start', start_iso)
+            setext('ManualStart', start_iso)
+            setext('EarlyStart', start_iso)
+            setext('LateStart', start_iso)
+        if finish_iso:
+            setext('Finish', finish_iso)
+            setext('ManualFinish', finish_iso)
+            setext('EarlyFinish', finish_iso)
+            setext('LateFinish', finish_iso)
         try:
-            if ini is not None and not isinstance(ini, float):
-                d = ini if hasattr(ini,'year') else datetime.fromisoformat(str(ini)).date()
-                setext('Start', datetime.combine(d, dtime(8,0)).strftime('%Y-%m-%dT%H:%M:%S'))
-        except: pass
-        try:
-            if fin is not None and not isinstance(fin, float):
-                d = fin if hasattr(fin,'year') else datetime.fromisoformat(str(fin)).date()
-                setext('Finish', datetime.combine(d, dtime(17,0)).strftime('%Y-%m-%dT%H:%M:%S'))
-        except: pass
-        if not is_sum and not is_mile:
-            try:
-                dnv = float(r.get('Duración Nueva'))
-                horas = int(round(dnv*hours_per_day))
-                setext('Duration', f"PT{horas}H0M0S")
-            except: pass
+            dnv = float(r.get('Duración Nueva'))
+            horas = int(round(dnv*hours_per_day))
+            dur_iso = f"PT{horas}H0M0S"
+            setext('Duration', dur_iso)
+            setext('ManualDuration', dur_iso)
+        except (TypeError, ValueError):
+            pass
+
     ET.register_namespace('', NS)
-    # Actualizar la FinishDate del encabezado del proyecto al máximo Fin Nuevo (cosmético;
-    # MS Project la recalcula al abrir, pero evita mostrar la fecha vieja).
+
+    # Actualizar la FinishDate del encabezado del proyecto al máximo Fin Nuevo.
+    # En modo manual Project ya no la pisa, así que ahora sí refleja la fecha real.
     try:
         import pandas as _pd
         fins = _pd.to_datetime(df_final['Fin Nuevo'], errors='coerce').dropna()
