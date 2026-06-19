@@ -172,7 +172,7 @@ PRESETS_MODELOS = {
         "desc": "Baja presión sin inundación pero satura la obra. Ur muy bajo + Ut alto: las trazas constantes paralizan la terracería."
     },
     "14: CFX-VAL-14-SHIFT Dilución Fast-Tracking 11h": {
-        "nlp": True, "ml": True, "pr": 20, "ur": 3.0, "ut": 2.0, "temp": 28.2, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 10, "ur": 1.9, "ut": 3.0, "temp": 27.7, "hum": 72.0, "jornada": (7, 18), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Ventana operativa extendida (Hw=11h). Un evento de 2h se diluye; verifica el operador de cuantización Q."
     },
     "15: CFX-VAL-15-HEAT Isla de Calor Estival (38°C)": {
