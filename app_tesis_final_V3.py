@@ -132,7 +132,7 @@ PRESETS_MODELOS = {
         "desc": "Feb-Mar. Pr alto y baja humedad: el modelo reconoce ventanas de oportunidad y no penaliza injustificadamente."
     },
     "04: CFX-LOG-04 OPEX Moderado": {
-        "nlp": True, "ml": True, "pr": 25, "ur": 2.5, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 25, "ur": 2.0, "ut": 5.5, "temp": 27.8, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Protección de costos indirectos. Si la lluvia arruina media jornada, se descarta el día para proteger el OPEX."
     },
     "05: CFX-TERMO-05 Evaporación Extrema": {
