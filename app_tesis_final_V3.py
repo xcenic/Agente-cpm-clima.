@@ -160,7 +160,7 @@ PRESETS_MODELOS = {
         "desc": "Máxima sensibilidad. Cualquier llovizna se registra; con poco remanente operativo se cancela el día. Límite superior de la deriva."
     },
     "11: CFX-VAL-11-CLAY Arcillas A-7-6": {
-        "nlp": True, "ml": True, "pr": 22, "ur": 2.0, "ut": 4.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
+        "nlp": True, "ml": True, "pr": 22, "ur": 2.0, "ut": 5.0, "temp": 27.0, "hum": 70.0, "jornada": (8, 17), "dias": ["Lun","Mar","Mié","Jue","Vie"],
         "desc": "Estratos cohesivos de alta plasticidad (Ic=3.0). El RF computa Tr asintóticamente alto por retención capilar."
     },
     "12: CFX-VAL-12-GRAN Bases Granulares A-1-a": {
